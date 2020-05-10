@@ -7,14 +7,20 @@ function love.keypressed(key)
    end
    
 end
+function mysplit (inputstr, sep)
+   if sep == nil then
+      sep = "%s"
+   end
+   local t={}
+   for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+      table.insert(t, str)
+   end
+   return t
+end
 function love.wheelmoved(a,b)
    local x, y = love.mouse.getPosition( )
-   --print(x,y)
-
-   -- ok what pulse am i over
-
-   --local m =((pulses_per_quarter_note*scale)/((pulses_per_quarter_note)*4))
-   local pulseIndex = math.ceil(x / (scale/4))
+   local scaleOld = scale
+   local pulseAtMouse =  math.ceil((x - xOff) / (scale))
    
    if b < 0 then
       scaleIndex = scaleIndex -1
@@ -26,91 +32,108 @@ function love.wheelmoved(a,b)
    scaleIndex = math.min(scaleIndex, #niceScales)
    scale = niceScales[scaleIndex]
 
-   local pulseIndexAfer = math.ceil(x / (scale/4))
-   --print(pulseIndex, pulseIndexAfer)
-   
+   local pulseAtMouseLater =  math.ceil((x-xOff) / (scale))
+   local d =  pulseAtMouseLater- pulseAtMouse
+   xOff = xOff + (d*scale)
 end
+
+function love.mousepressed(x,y)
+   if x>xOff and x < pulses*scale+xOff then
+      if y>0 and y < 150 then
+         
+         dragging = true
+      end
+   end
+
+end
+function love.mousereleased()
+   dragging = false
+
+end
+function love.mousemoved(x,y,dx,dy)
+   if dragging then
+      xOff = xOff + dx
+   end
+end
+
 
 function love.load()
    love.window.setMode(1800, 800)
+
+   dragging = false
+   
    pulses_per_quarter_note = 96
-   niceScales = { 1.0, 2.0, 4.0, 8.0, 16, 32}
+   niceScales = { 0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16, 32}
    scaleIndex = 1
    scale = niceScales[scaleIndex]
 
-   drawn = {{length=10, expr="1.1.5"}, {length=3, expr="1.2.70"}}
-
-   local arr = {[1]="1",[100]="100",[3]="3",[33]="33",[1111]="1111"}
-
-   for k,v in pairs(arr) do
-      print(k,v)
+   bars = 8
+   beatsInBar = 4
+   pulses =  (pulses_per_quarter_note * 4) * beatsInBar * bars
+   --print(pulses)
+   dict = {}
+   for i=1, pulses do
+      dict[i] = nil
+      if (i % (96) == 1) then
+         --print(i)
+         dict[i] = {length=math.floor(10)}
+      end
+      if (i % (96*4) == 1) then
+         --print(i)
+         dict[i] = {length=math.floor(20)}
+      end
    end
+
+   xOff = 0
+   --visibleEndPulse = pulses
    
 end
 
-function mysplit (inputstr, sep)
-   if sep == nil then
-      sep = "%s"
-   end
-   local t={}
-   for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
-      table.insert(t, str)
-   end
-   return t
+function mapInto(x, in_min, in_max, out_min, out_max)
+   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 end
+
 
 function love.draw()
-   love.graphics.clear(0.9, 0.9, 0.9)
-   
+   love.graphics.clear(0.93, 0.89, 0.74)
+   love.graphics.setColor(0.7, 0.45, 0.4)
+   local m = scale
 
-   local w = love.graphics.getWidth()
-  
-   
-   love.graphics.setColor(1, 0.8, 0.8)
-   if scale > 4 then
-      love.graphics.setColor(0.8, 0.8, 0.8)
-
+   -- the grid
+   -- the pulses in the grid
+  local a =  mapInto(m,  0.0625, 32, 0, .9)
+  --love.graphics.setColor(0.60, 0.60, 0.6, a)
+  if a>0.05 then
+   love.graphics.setColor(0, 0, 0, a)
+   for i=1, pulses do
+      love.graphics.line(xOff + i*m,0,xOff + i*m, 100)
+   end
    end
    
-   local m =((pulses_per_quarter_note*scale)/((pulses_per_quarter_note)*4))
-  
-   for i=1, w / m do
-      love.graphics.line(i*m,0,i*m,100)
-   end
-
-   if (scale > 0.25) then
-      love.graphics.setColor(0.7,0.7,0.7)
-      m =((pulses_per_quarter_note*scale)/16)
-      for i=1, w / m do
-         love.graphics.line(i*m,0,i*m,100)
+   for i=1, pulses do
+      if  (i % (96*4 * beatsInBar) == 0) then   -- bar!
+         love.graphics.setColor(0.1, 0.1, 0.1)
+         love.graphics.line(xOff + i*m,0,xOff + i*m, 120)
+      elseif  (i % (96*4) == 0) then           -- beat !
+         love.graphics.setColor(0.52, 0, 0.03)
+         love.graphics.line(xOff + i*m,0,xOff + i*m, 105)
       end
    end
    
-   if (scale > 0.125) then
-      love.graphics.setColor(0.5,0.5,.5)
-      m =((pulses_per_quarter_note*scale)/4)
-      for i=1, w / m do
-         love.graphics.line(i*m,0,i*m,100)  --1/16
+   -- the notes
+   
+   for i=1, pulses do
+      if dict[i] then
+         love.graphics.setColor(.90, .7, .6,0.6)
+         love.graphics.rectangle("fill", xOff + (i-1) * m , 0, m * dict[i].length, 100)
+         love.graphics.setColor(.20, .2, .2)
+         love.graphics.rectangle("line", xOff + (i-1) * m , 0, m * dict[i].length, 100)
       end
    end
+   
 
-   love.graphics.setColor(0,0,0)
-   m =((pulses_per_quarter_note*scale)/1)  -- 1/4
-   for i=1, w / m do
-      love.graphics.line(i*m,0,i*m,120)
-   end
-   
-   love.graphics.setColor(1,0,0, 0.25)
-   for i = 1, #drawn do
-      local split = mysplit(drawn[i].expr, '.')
-      
-      local xQuarter = (split[2]-1 ) * (pulses_per_quarter_note * scale)
-      local xBar = (split[1]-1 ) * (pulses_per_quarter_note  * 4 * scale)
-      local xPulse = (split[3]-1 ) * (pulses_per_quarter_note  * (1.0/96)/4 * scale)
-      
-      love.graphics.rectangle("fill", xBar + xQuarter + xPulse, 0, (drawn[i].length /4) * scale,100)
-    --  print(inspect(drawn[i]), inspect(split))
-   end
-   
-   
+   love.graphics.setColor(0, 0, 0)
+   love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
+   love.graphics.setColor(0.7, 1, 1)
+   love.graphics.print(tostring(love.timer.getFPS( )), 10, 10)
 end
