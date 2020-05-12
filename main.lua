@@ -28,7 +28,7 @@ function love.wheelmoved(a,b)
    else
       scaleIndex = scaleIndex + 1
    end
-   --print(scaleIndex)
+
    scaleIndex = math.max(1, scaleIndex)
    scaleIndex = math.min(scaleIndex, #niceScales)
    scale = niceScales[scaleIndex]
@@ -73,6 +73,10 @@ function love.mousepressed(x,y)
       if moveEnd or moveStart then
          love.mouse.setCursor(cursors.sizewe)
       end
+      if moveStart and moveEnd then
+         moveStart = false
+      end
+      
       dragging = {wasAt=hitIndex,
                   pulseOffset=0,
                   widthOffset=0,
@@ -92,6 +96,7 @@ function round(num, numDecimalPlaces)
 end
 
 function love.mousereleased()
+
    if dragging and dragging.moveWhole then
       dict[dragging.wasAt] = nil
 
@@ -120,14 +125,14 @@ function love.mousereleased()
    end
    if dragging and dragging.moveStart   then
       dict[dragging.wasAt] = nil
-      local newIndex = dragging.wasAt + (math.floor(dragging.widthOffset))
-      dict[newIndex] = dragging.note
-      local l =  dict[newIndex].length -  math.floor(dragging.widthOffset)
+      
+      local l =  dragging.note.length -  math.floor(dragging.widthOffset)
       if l > 0 then
+         local newIndex = dragging.wasAt + (math.floor(dragging.widthOffset))
+         dict[newIndex] = dragging.note
          dict[newIndex].length = l
       else
-         local newerIndex = dragging.wasAt + dict[newIndex].length
-         dict[newIndex]  = nil
+         local newerIndex = dragging.wasAt + dragging.note.length
          dict[newerIndex] =  dragging.note
          local newLength = math.floor(dragging.widthOffset) -  dragging.note.length
          dict[newerIndex].length = newLength
