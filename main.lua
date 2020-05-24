@@ -1,12 +1,14 @@
 local inspect = require "inspect"
-
+local thread -- Our thread object.
+--luamidi = require "luamidi"
+-- upright bass in emu hiphop
 
 function love.keypressed(key)
    if key == 'escape' then
-      love.event.quit()
+      channel.main2audio:push ( "quit" );
    end
-   
 end
+
 function mysplit (inputstr, sep)
    if sep == nil then
       sep = "%s"
@@ -60,6 +62,18 @@ function getDictIndexAt(x,y)
    return -1
 end
 
+function love.update(dt)
+    local error = thread:getError()
+    assert( not error, error )
+    local v = channel.audio2main:pop ();
+    if v then
+       if v == 'quit' then
+          love.event.quit()
+       end
+    end
+end
+
+
 
 function love.mousepressed(x,y)
 
@@ -91,8 +105,8 @@ function love.mousepressed(x,y)
 end
 
 function round(num, numDecimalPlaces)
-  local mult = 10^(numDecimalPlaces or 0)
-  return math.floor(num * mult + 0.5) / mult
+   local mult = 10^(numDecimalPlaces or 0)
+   return math.floor(num * mult + 0.5) / mult
 end
 
 function love.mousereleased()
@@ -101,7 +115,7 @@ function love.mousereleased()
       dict[dragging.wasAt] = nil
 
       local newIndex = dragging.wasAt + math.floor(dragging.pulseOffset)
-      local quantize = 96/96
+      local quantize = pulses_per_quarter_note/pulses_per_quarter_note
       
       newIndex = (round(newIndex / quantize) * quantize)
       
@@ -147,15 +161,15 @@ end
 
 function posIsOverNoteEnding(x,y)
    local hitIndex = getDictIndexAt(x,y)
-      local realIndex = (math.ceil((x-xOff)/scale)) - hitIndex + 1
-      local moveEnd = false
-      if hitIndex > 0 then
-         local d = dict[hitIndex]
-         if realIndex == d.length then
-            return true
-         end
+   local realIndex = (math.ceil((x-xOff)/scale)) - hitIndex + 1
+   local moveEnd = false
+   if hitIndex > 0 then
+      local d = dict[hitIndex]
+      if realIndex == d.length then
+         return true
       end
-      return false
+   end
+   return false
 end
 
 
@@ -168,7 +182,7 @@ function love.mousemoved(x,y,dx,dy)
          
       elseif dragging.moveWhole then
          dragging.pulseOffset = dragging.pulseOffset + dx/scale
-     
+         
       end
       
    else
@@ -186,51 +200,71 @@ function love.mousemoved(x,y,dx,dy)
       if moveEnd or moveStart then
          love.mouse.setCursor(cursors.sizewe)
       end
-      
-      
    end
    
 end
 
+function recursiveEnumerate(folder, fileTree)
+   local lfs = love.filesystem
+   local filesTable = lfs.getDirectoryItems(folder)
+   for i,v in ipairs(filesTable) do
+      local file = folder.."/"..v
+      if lfs.isFile(file) then
+         fileTree = fileTree.."\n"..file
+      elseif lfs.isDirectory(file) then
+         fileTree = fileTree.."\n"..file.." (DIR)"
+         fileTree = recursiveEnumerate(file, fileTree)
+      end
+   end
+   return fileTree
+end
+ 
 
 function love.load()
+   thread = love.thread.newThread( 'thread.lua' )
+   thread:start( )
+   channel		= {};
+   channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
+   channel.main2audio	= love.thread.getChannel ( "main2audio" ); -- from main
+   
+   
    love.window.setMode(1800, 800)
    cursors = {hand=love.mouse.getSystemCursor("hand"),
               arrow=love.mouse.getSystemCursor("arrow"),
-             sizewe = love.mouse.getSystemCursor("sizewe")}
+              sizewe = love.mouse.getSystemCursor("sizewe")}
    dragging = false
+   font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 48)
+   love.graphics.setFont(font)
+
    
-   pulses_per_quarter_note = 96
    niceScales = {0.03125, 0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16, 32}
    scaleIndex = math.floor(#niceScales/2)
    scale = niceScales[scaleIndex]
 
-   -- say i aim for 3:30 how many beats is that
-   -- say we go fo 80bpm
-   -- that means : 3.5 * 80 = 280 beats,
-   -- each beat has 96 pulses so : 280 * 96 = 26880 pulses
-
-   -- now we go for 140 bpm
-   -- 3.5 * 140  = 490 beats
-   -- 490 * 96 = 47040 pulses
-
-   bars = 10
-   beatsInBar = 4
-   pulses =  (pulses_per_quarter_note * 4) * beatsInBar * bars
+   pulses_per_quarter_note = 96
+   beatsInBar = 4       --  4/x
+   quarters_in_beat = 4 --  x/4  -- this doesnt work as expected . when you put in 3 it works but when you put 8 it doenst
+   bars = 4
+   
+   
+   pulses =  (pulses_per_quarter_note * quarters_in_beat) * beatsInBar * bars
 
    dict = {}
-   for i=1, pulses do
-      dict[i] = nil
-      if (i % (96) == 1) then
-         dict[i] = {length=math.floor(96)}
-      end
-      if (i % (96*4) == 1) then
-         dict[i] = {length=math.floor(20)}
-      end
-   end
+   -- for i=1, pulses do
+   --    dict[i] = nil
+   --    if (i % (pulses_per_quarter_note) == 1) then
+   --       dict[i] = {length=math.floor(pulses_per_quarter_note)}
+   --    end
+   --    if (i % (pulses_per_quarter_note*beatsInBar) == 1) then
+   --       dict[i] = {length=math.floor(20)}
+   --    end
+   -- end
 
    xOff = 0
-  
+
+  filesString = recursiveEnumerate("", "")
+  print(filesString)
+
 end
 
 function mapInto(x, in_min, in_max, out_min, out_max)
@@ -245,79 +279,83 @@ function love.draw()
 
    -- the grid
    -- the pulses in the grid
-  local a =  mapInto(m,  0.0625, 32, 0, .9)
-  --love.graphics.setColor(0.60, 0.60, 0.6, a)
-  if a>0.05 then
-     love.graphics.setColor(0.4, 0.4, 0.4, a)
-     for i=1, pulses do
-        love.graphics.line(xOff + i*m,0,xOff + i*m, 100)
-     end
-  end
-  
-  for i=1, pulses do
-     if  (i % (96*4 * beatsInBar) == 0) then   -- bar!
-        love.graphics.setLineWidth(3)
-        love.graphics.setColor(0.1, 0.1, 0.1)
-        love.graphics.line(xOff + i*m,0,xOff + i*m, 120)
-        love.graphics.setLineWidth(1)
-
-     elseif  (i % (96*4) == 0) then           -- beat !
-        love.graphics.setColor(0.52, 0, 0.03)
-        love.graphics.line(xOff + i*m,0,xOff + i*m, 110)
-     end
-
-     if a > 0.05 then
-        if  (i % (96/4) == 0) then           -- 16th !
-           love.graphics.setColor(0.52, 0, 0.03, a)
-           love.graphics.line(xOff + i*m,0,xOff + i*m, 100)
-        end
-     end
-     
-  end
-  
-  -- the notes
-
-  function drawRectangle(x,y,w,h, alpha, fill, out)
-     love.graphics.setColor(fill[1], fill[2], fill[3], alpha)
-     love.graphics.rectangle("fill", x , y, w, h)
-     love.graphics.setColor(out[1], out[2], out[3], alpha)
-     love.graphics.rectangle("line", x , y, w, h)
-  end
-  
-
-  local fill = {.90, .7, .6}
-  local line = {.32, 0.5, 0.5 }
-  
-  for i=1, pulses do
-     if dict[i] then
-        local alpha = 0.75
-        if dragging and dragging.wasAt == i then
-           alpha = 0.25
-        end
-        drawRectangle( xOff + (i-1) * m ,0, m * dict[i].length, 100, alpha, fill, line)
+   local a =  mapInto(m,  0.0625, 32, 0, .9)
+   --love.graphics.setColor(0.60, 0.60, 0.6, a)
+   if a>0.05 then
+      love.graphics.setColor(0.4, 0.4, 0.4, a)
+      for i=1, pulses do
+         love.graphics.line(xOff + i*m,0,xOff + i*m, 100)
       end
-  end
-
-  if dragging then
-     
-     local dnl = dragging.note.length
-     local wo = math.floor(dragging.widthOffset)
-     local po =  math.floor(dragging.pulseOffset)
-     local i = dragging.wasAt
-     
-     if dragging and dragging.moveWhole == true then
-        drawRectangle(xOff + (i-1 + po) * m, 0, m * dnl, 100, .75, fill, line)
-     end
-     if dragging and dragging.moveEnd == true then
-        drawRectangle(xOff + (i-1) * m , 0, m * (dnl + wo), 100, 0.75, fill, line )
-     end
-     if dragging and dragging.moveStart == true then
-        drawRectangle(xOff + (i-1 +wo) * m  , 0, m * (dnl - wo), 100, 0.75, fill, line )
-     end
    end
 
-   love.graphics.setColor(0, 0, 0)
-   love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
-   love.graphics.setColor(0.7, 1, 1)
+
+   -- 
+   for i=1, pulses do
+      if  (i % (pulses_per_quarter_note * quarters_in_beat * beatsInBar) == 0 or i==1) then   -- bar!
+         love.graphics.setLineWidth(3)
+         love.graphics.setColor(0.1, 0.1, 0.1)
+         love.graphics.line(xOff + i*m,0,xOff + i*m, 120)
+         love.graphics.setLineWidth(1)
+
+      elseif  (i % (pulses_per_quarter_note * quarters_in_beat) == 0) then           -- beat !
+         love.graphics.setColor(0.52, 0, 0.03)
+         love.graphics.line(xOff + i*m,0,xOff + i*m, 110)
+      end
+
+      if a > 0.05 then
+         if  (i % (pulses_per_quarter_note/4) == 0) then           -- 16th !
+            love.graphics.setColor(0.52, 0, 0.03, a)
+            love.graphics.line(xOff + i*m,0,xOff + i*m, 100)
+         end
+      end
+      
+   end
+   
+   -- the notes
+
+   function drawRectangle(x,y,w,h, alpha, fill, out)
+      love.graphics.setColor(fill[1], fill[2], fill[3], alpha)
+      love.graphics.rectangle("fill", x , y, w, h)
+      love.graphics.setColor(out[1], out[2], out[3], alpha)
+      love.graphics.rectangle("line", x , y, w, h)
+   end
+   
+
+   local fill = {.90, .7, .6}
+   local line = {.32, 0.5, 0.5 }
+   
+   for i=1, pulses do
+      if dict[i] then
+         local alpha = 0.75
+         if dragging and dragging.wasAt == i then
+            alpha = 0.25
+         end
+         drawRectangle( xOff + (i-1) * m ,0, m * dict[i].length, 100, alpha, fill, line)
+      end
+   end
+
+   if dragging and dragging.note then
+      local dnl = dragging.note.length
+      local wo = math.floor(dragging.widthOffset)
+      local po =  math.floor(dragging.pulseOffset)
+      local i = dragging.wasAt
+      
+      if dragging and dragging.moveWhole == true then
+         drawRectangle(xOff + (i-1 + po) * m, 0, m * dnl, 100, .75, fill, line)
+      end
+      if dragging and dragging.moveEnd == true then
+         drawRectangle(xOff + (i-1) * m , 0, m * (dnl + wo), 100, 0.75, fill, line )
+      end
+      if dragging and dragging.moveStart == true then
+         drawRectangle(xOff + (i-1 +wo) * m  , 0, m * (dnl - wo), 100, 0.75, fill, line )
+      end
+   end
+
+   love.graphics.setColor(0.2, 0.2, 0.2)
    love.graphics.print(tostring(love.timer.getFPS( )), 10, 10)
+   love.graphics.setColor(1,1,1)
+   love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
+   love.graphics.setColor(0.2, 0.2, 0.2)
+   love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
+   love.graphics.print("C maj 7 dim", 12, 120)
 end
