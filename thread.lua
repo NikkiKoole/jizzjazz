@@ -2,6 +2,7 @@ require('love.timer')
 require('love.sound')
 require('love.audio')
 require('love.math')
+sone = require 'sone'
 
 luamidi = require "luamidi"
 local inspect = require "inspect"
@@ -17,7 +18,7 @@ channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
 
-soundData = love.sound.newSoundData( 'assets/oscillators/SIDTRAW.wav' )
+soundData = love.sound.newSoundData( 'assets/oscillators/AKWF_epiano_0064.wav' )
 sound = love.audio.newSource(soundData, 'static')
 
 
@@ -26,16 +27,18 @@ activeSources = {}
 pitches = {}
 
 adsr = {
-   attack = .3,
+   attack = .03,
    max   = 0.8,
    decay = 0.1,
-   sustain= 0.6,
+   sustain= 0.8,
    release = .15,
 }
 
---glide = true
---glideDuration = .1
+glide = true
+glideDuration = .08
 
+vibratoSpeed = 96/2
+vibratoStrength = 40
 
 
 function mapInto(x, in_min, in_max, out_min, out_max)
@@ -46,9 +49,9 @@ for i = 0, 144 do
    local freqs = {261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 466.16, 493.88, 523.25}
    local o = math.floor(i / 12)
    local semitone = i % 12
-   
    local n = mapInto(freqs[semitone+1], 261.63, 523.25, 0, 1)
    local pitch = 1
+   
    if     o == 0 then pitch =(0.03125 -(0.015625 -  n/64))
    elseif o == 1 then pitch =(0.0625 -(0.03125 -  n/32))
    elseif o == 2 then pitch =(0.125 -(0.0625 -  n/16))
@@ -102,12 +105,27 @@ function playNote(semitone, velocity)
       activeSources[index].released = nil -- 
    else
       
-      local sound = {sound=sound:clone(), key=semitone, noteOnTime=now }
-      sound.sound:setLooping(true)
-      sound.sound:setPitch(pitches[semitone])
-      sound.sound:setVolume(0)
-      sound.sound:play()
-      table.insert(activeSources, sound)
+      local s = {sound=sound:clone(), key=semitone, noteOnTime=now }
+      s.sound:setLooping(true)
+      s.sound:setPitch(pitches[semitone])
+      s.sound:setVolume(0)
+      s.sound:play()
+      table.insert(activeSources, s)
+
+      -- chorus!!! 
+      -- local echo = {sound=sound:clone(), key=semitone, noteOnTime=now+0.005}
+      -- echo.sound:setLooping(true)
+      -- echo.sound:setPitch(pitches[semitone]*0.999)
+      -- echo.sound:setVolume(0)
+      -- echo.sound:play()
+      -- table.insert(activeSources, echo)
+
+      -- echo2 = {sound=sound:clone(), key=semitone, noteOnTime=now+0.05 }
+      -- echo2.sound:setLooping(true)
+      -- echo2.sound:setPitch(pitches[semitone]*1.002)
+      -- echo2.sound:setVolume(0)
+      -- echo2.sound:play()
+      -- table.insert(activeSources, echo2)
    end
    
 end
@@ -130,7 +148,14 @@ function stopNote(semitone)
    for i=1, #activeSources do
       if semitone == activeSources[i].key then
          activeSources[i].noteOffTime = now
+         
+         
          activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
+         if  activeSources[i].echo then
+            activeSources[i].noteOffTime = now+activeSources[i].echoOffset
+            activeSources[i].noteOffVolume = activeSources[i-1].sound:getVolume()
+
+         end
          activeSources[i].released = true
       end
    end
@@ -145,7 +170,7 @@ while(run) do
       if activeSources[i].released ~= true then
          local attackTime = now - activeSources[i].noteOnTime
          local volume = 0
-         
+        
          if attackTime <= adsr.attack then
             volume = mapInto(attackTime, 0, adsr.attack, 0, adsr.max)
          elseif attackTime <= adsr.attack + adsr.decay then
@@ -156,16 +181,25 @@ while(run) do
          
          if volume > math.max(adsr.max, adsr.sustain) then volume =  math.max(adsr.max, adsr.sustain) end
          activeSources[i].sound:setVolume(volume)
+         if (activeSources[i].echo) then
+            print(attackTime, volume)
+         end
          
       end
       -- release
       if activeSources[i].released == true then
          local releaseTime = now - activeSources[i].noteOffTime
-         local volume = mapInto(releaseTime, adsr.release, 0, 0,  activeSources[i].noteOffVolume)
+         local volume = mapInto(releaseTime, adsr.release, 0, 0, activeSources[i].noteOffVolume)
          if volume < 0 then volume = 0 end
          activeSources[i].sound:setVolume(volume)
+
+         --if (activeSources[i].echo) then
+         --   print(releaseTime, volume)
+         --end
       end
 
+
+      -- glide / portamento
       if activeSources[i].glideFromPitch then
          local glideTime =  (now - activeSources[i].glideStart)
          
@@ -178,7 +212,17 @@ while(run) do
          if newPitch < 0.00001 then newPitch = 0.00001 end  
          activeSources[i].sound:setPitch(newPitch)
       end
-      
+
+      -- vibrato
+      --local newPitch = pitches[activeSources[i].key] + (math.sin(time*vibratoSpeed)/(math.max(vibratoStrength, 1)))
+      --local newVolume = (math.sin(time*vibratoSpeed)/(math.max(vibratoStrength, 1)))
+      --if newPitch < 0.00000001 then newPitch = 0.00000001 end
+
+      --activeSources[i].sound:setPitch(newPitch)
+      --activeSources[i].sound:setVolume(newVolume)
+
+
+   
    end
 
    
@@ -190,7 +234,8 @@ while(run) do
          end
       end
    end
-   
+
+  
    
    if luamidi and luamidi.getinportcount() > 0 then
       --print('yo')
@@ -210,6 +255,14 @@ while(run) do
             stopNote(b)
          elseif a == 176 then
             print('rotating a knob',a, b, c,d)
+            if b == 2 then
+               vibratoSpeed = c
+
+            end
+            if b == 3 then
+               vibratoStrength = c
+            end
+            
             --lfoThing = c
          elseif a == 224 then
             pitchNote(c)
@@ -229,9 +282,13 @@ while(run) do
          run = false
          love.thread.getChannel( 'audio2main' ):push('quit')
       end
+      if v.osc  then
+         soundData = love.sound.newSoundData( v.osc )
+         sound = love.audio.newSource(soundData, 'static')
+        
+      end
       
-
-      --channel.a:push ( "bar" )
+            --channel.a:push ( "bar" )
    end
    
    
@@ -241,7 +298,7 @@ while(run) do
    
    now = n
    time = time + delta
-   local beat = time * (90 / 60)
+   local beat = time * (120 / 60)
    local tick = ((beat % 1) * (96))
    if math.floor(tick) - math.floor(lastTick) > 1 then
       print('thread: missed ticks:', math.floor(beat), math.floor(tick), math.floor(lastTick))

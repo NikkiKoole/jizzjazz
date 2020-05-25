@@ -102,6 +102,16 @@ function love.mousepressed(x,y)
       love.mouse.setCursor(cursors.arrow)
       dragging = 'all'
    end
+   if x> 12 and y > 100 then
+      
+      local index = (math.floor((x-12)/150) * 30) + math.floor((y-100)/20) + 1
+      if index <= #oscillators then
+         print(oscillators[index])
+         channel.main2audio:push({osc= "assets/oscillators/"..oscillators[index]});
+      end
+      
+   end
+   
 end
 
 function round(num, numDecimalPlaces)
@@ -204,20 +214,20 @@ function love.mousemoved(x,y,dx,dy)
    
 end
 
-function recursiveEnumerate(folder, fileTree)
-   local lfs = love.filesystem
-   local filesTable = lfs.getDirectoryItems(folder)
-   for i,v in ipairs(filesTable) do
-      local file = folder.."/"..v
-      if lfs.isFile(file) then
-         fileTree = fileTree.."\n"..file
-      elseif lfs.isDirectory(file) then
-         fileTree = fileTree.."\n"..file.." (DIR)"
-         fileTree = recursiveEnumerate(file, fileTree)
-      end
-   end
-   return fileTree
-end
+-- function recursiveEnumerate(folder, fileTree)
+--    local lfs = love.filesystem
+--    local filesTable = lfs.getDirectoryItems(folder)
+--    for i,v in ipairs(filesTable) do
+--       local file = folder.."/"..v
+--       if lfs.isFile(file) then
+--          fileTree = fileTree.."\n"..file
+--       elseif lfs.isDirectory(file) then
+--          fileTree = fileTree.."\n"..file.." (DIR)"
+--          fileTree = recursiveEnumerate(file, fileTree)
+--       end
+--    end
+--    return fileTree
+-- end
  
 
 function love.load()
@@ -233,7 +243,8 @@ function love.load()
               arrow=love.mouse.getSystemCursor("arrow"),
               sizewe = love.mouse.getSystemCursor("sizewe")}
    dragging = false
-   font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 48)
+   --font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 48)
+   font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 16)
    love.graphics.setFont(font)
 
    
@@ -262,8 +273,10 @@ function love.load()
 
    xOff = 0
 
-  filesString = recursiveEnumerate("", "")
-  print(filesString)
+  --filesString = recursiveEnumerate("assets/oscillators", "")
+  --print(filesString)
+  oscillators = love.filesystem.getDirectoryItems("assets/oscillators")
+  --print(inspect(love.filesystem.getDirectoryItems("assets/oscillators")))
 
 end
 
@@ -357,5 +370,20 @@ function love.draw()
    love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
    love.graphics.setColor(0.2, 0.2, 0.2)
    love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
-   love.graphics.print("C maj 7 dim", 12, 120)
+   --love.graphics.print("C maj 7 dim", 12, 120)
+
+   
+   love.graphics.setColor(0.8, 0.8, 0.8)
+   local rows = 30
+   for i =1, #oscillators do
+      local j = i-1
+      love.graphics.rectangle('line', 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20, 150, 20)
+   end
+   love.graphics.setColor(0.2, 0.2, 0.2)
+   
+   for i =1, #oscillators do
+      local j = i-1
+      love.graphics.print(string.gsub(oscillators[i], '.wav', ''), 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20)
+   end
+   
 end
