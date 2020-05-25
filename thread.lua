@@ -18,7 +18,7 @@ channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
 
-soundData = love.sound.newSoundData( 'assets/oscillators/AKWF_epiano_0064.wav' )
+soundData = love.sound.newSoundData( 'assets/oscillators/AKWF_fmsynth_0101.wav' )
 sound = love.audio.newSource(soundData, 'static')
 
 
@@ -27,18 +27,18 @@ activeSources = {}
 pitches = {}
 
 adsr = {
-   attack = .03,
+   attack = .1,
    max   = 0.8,
    decay = 0.1,
    sustain= 0.8,
-   release = .15,
+   release = .1,
 }
 
-glide = true
-glideDuration = .08
+--glide = true
+--glideDuration = .05
 
-vibratoSpeed = 96/2
-vibratoStrength = 40
+vibratoSpeed = 96/96
+vibratoStrength = 10  -- this should be in semitones
 
 
 function mapInto(x, in_min, in_max, out_min, out_max)
@@ -91,21 +91,16 @@ end
 function playNote(semitone, velocity)
    if glide and #activeSources > 0 then
       local index = 1 --findIndexFirstNonReleasedNote()
-      --print(index)
       assert(#activeSources == 1)
       activeSources[index].key = semitone
       activeSources[index].glideFromPitch = activeSources[index].sound:getPitch()
       activeSources[index].glideStart = now
-      -- i think i need to allow to released notes, and instead look for the first non released note here
-      --if activeSources[1].released then
-         --print('issue?', inspect(activeSources[1]))
-      --end
-      
-      --activeSources[1].noteOnTime = now - activeSources[1].noteOnTime
-      activeSources[index].released = nil -- 
+      activeSources[index].released = nil 
+      activeSources[index].noteOffTime=-1
+      activeSources[index].noteOnTime=now
    else
       
-      local s = {sound=sound:clone(), key=semitone, noteOnTime=now }
+      local s = {sound=sound:clone(), key=semitone, noteOnTime=now, noteOffTime=-1  }
       s.sound:setLooping(true)
       s.sound:setPitch(pitches[semitone])
       s.sound:setVolume(0)
@@ -138,8 +133,7 @@ function pitchNote(value)
       if value == 64 then
          newPitch =  pitches[activeSources[i].key]
       end
-      
-      activeSources[i].sound:setPitch(newPitch)
+      activeSources[i].pitchDelta =  newPitch - pitches[activeSources[i].key]
    end
    
 end
@@ -148,17 +142,40 @@ function stopNote(semitone)
    for i=1, #activeSources do
       if semitone == activeSources[i].key then
          activeSources[i].noteOffTime = now
-         
-         
          activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
-         if  activeSources[i].echo then
-            activeSources[i].noteOffTime = now+activeSources[i].echoOffset
-            activeSources[i].noteOffVolume = activeSources[i-1].sound:getVolume()
-
-         end
          activeSources[i].released = true
       end
    end
+end
+
+function getVolumeAndPhaseASDR(now, noteOnTime, noteOffTime, noteOffVolume,asdr)
+   local volume = 0
+   local phase = ''
+
+   if noteOffTime == -1 then 
+      local attackTime = (now - noteOnTime)
+      if attackTime < 0 then
+         phase = 'before'
+         volume = 0
+      elseif attackTime >=0 and attackTime <= adsr.attack then
+         volume = mapInto(attackTime, 0, adsr.attack, 0, adsr.max)
+         phase = 'attack'
+      elseif attackTime <= adsr.attack + adsr.decay then
+         phase = 'decay'
+         volume = mapInto(attackTime - adsr.attack, 0, adsr.decay, adsr.max, adsr.sustain)
+      elseif attackTime > adsr.attack + adsr.decay then
+         phase = 'sustain'
+         volume = adsr.sustain
+      end
+      
+   else 
+      phase  = 'released'
+      local releaseTime = now - noteOffTime
+      volume = mapInto(releaseTime, adsr.release, 0, 0, noteOffVolume)
+      
+   end
+   if volume < 0 then volume = 0 end
+   return volume, phase   
 end
 
 
@@ -166,61 +183,46 @@ while(run) do
    
    for i =1, #activeSources do
       -- attack, decay, sustain
-
-      if activeSources[i].released ~= true then
-         local attackTime = now - activeSources[i].noteOnTime
-         local volume = 0
-        
-         if attackTime <= adsr.attack then
-            volume = mapInto(attackTime, 0, adsr.attack, 0, adsr.max)
-         elseif attackTime <= adsr.attack + adsr.decay then
-            volume = mapInto(attackTime - adsr.attack, 0, adsr.decay, adsr.max, adsr.sustain)
-         elseif attackTime > adsr.attack + adsr.decay then
-            volume = adsr.sustain
-         end
-         
-         if volume > math.max(adsr.max, adsr.sustain) then volume =  math.max(adsr.max, adsr.sustain) end
-         activeSources[i].sound:setVolume(volume)
-         if (activeSources[i].echo) then
-            print(attackTime, volume)
-         end
-         
-      end
-      -- release
-      if activeSources[i].released == true then
-         local releaseTime = now - activeSources[i].noteOffTime
-         local volume = mapInto(releaseTime, adsr.release, 0, 0, activeSources[i].noteOffVolume)
-         if volume < 0 then volume = 0 end
-         activeSources[i].sound:setVolume(volume)
-
-         --if (activeSources[i].echo) then
-         --   print(releaseTime, volume)
-         --end
-      end
+      local v,p = getVolumeAndPhaseASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, asdr)
+      --print(v,p)
+      activeSources[i].sound:setVolume(v)
+ 
 
 
+
+
+      
       -- glide / portamento
+      local pitch =  activeSources[i].sound:getPitch()
+      local newPitch = pitch
       if activeSources[i].glideFromPitch then
          local glideTime =  (now - activeSources[i].glideStart)
-         
-         local newPitch = mapInto(glideTime, 0, glideDuration,
+         newPitch = mapInto(glideTime, 0, glideDuration,
                                   activeSources[i].glideFromPitch,
                                   pitches[activeSources[i].key])
          if glideTime > glideDuration then
             activeSources[i].glideFromPitch = nil
          end
-         if newPitch < 0.00001 then newPitch = 0.00001 end  
-         activeSources[i].sound:setPitch(newPitch)
       end
 
       -- vibrato
-      --local newPitch = pitches[activeSources[i].key] + (math.sin(time*vibratoSpeed)/(math.max(vibratoStrength, 1)))
-      --local newVolume = (math.sin(time*vibratoSpeed)/(math.max(vibratoStrength, 1)))
-      --if newPitch < 0.00000001 then newPitch = 0.00000001 end
+      local vibratoSmallPitchDiff =  ((pitches[activeSources[i].key] -  pitches[activeSources[i].key+1])) 
+      local vibratoPitchOffset = math.sin(time * vibratoSpeed) *  vibratoSmallPitchDiff/(vibratoStrength) -- [-1, 1]
+      if activeSources[i].glideFromPitch then
+         newPitch = newPitch + (vibratoPitchOffset)/2
+      else
+         newPitch =  pitches[activeSources[i].key]  + (vibratoPitchOffset)--(math.sin(time*vibratoSpeed)/vibratoStrength)
+      end
 
-      --activeSources[i].sound:setPitch(newPitch)
-      --activeSources[i].sound:setVolume(newVolume)
 
+      -- pitch knob
+      if activeSources[i].pitchDelta then
+         newPitch = newPitch + activeSources[i].pitchDelta
+      end
+      
+      
+      if newPitch < 0.00001 then newPitch = 0.00001 end
+      activeSources[i].sound:setPitch(newPitch)
 
    
    end
@@ -254,14 +256,17 @@ while(run) do
          elseif a == 128 then
             stopNote(b)
          elseif a == 176 then
-            print('rotating a knob',a, b, c,d)
             if b == 2 then
-               vibratoSpeed = c
+               vibratoSpeed = 96/ math.max(c,1)
+               print('vibratospeed', vibratoSpeed)
+            elseif b == 3 then
+               vibratoStrength = math.max(c,1)
+               print('vibratoStrength', vibratoStrength)
 
+            else
+               print('knob', b,c)
             end
-            if b == 3 then
-               vibratoStrength = c
-            end
+            
             
             --lfoThing = c
          elseif a == 224 then
