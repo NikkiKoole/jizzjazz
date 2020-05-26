@@ -35,9 +35,9 @@ adsr = {
 }
 
 glide = true
-glideDuration = .005
+glideDuration = .05
 
-vibrato = false
+vibrato = true
 vibratoSpeed = 96/96
 vibratoStrength = 10  -- this should be in semitones
 
@@ -123,7 +123,9 @@ function pitchNote(value)
       if value == 64 then
          newPitch =  pitches[activeSources[i].key]
       end
+      --print(pitches[activeSources[i].key], newPitch)
       activeSources[i].pitchDelta =  newPitch - pitches[activeSources[i].key]
+
    end
    
 end
@@ -185,29 +187,30 @@ while(run) do
 
       
       -- glide / portamento
-      local pitch =  activeSources[i].sound:getPitch()
+      local pitch =  pitches[activeSources[i].key] --activeSources[i].sound:getPitch()
       local newPitch = pitch
 
       if glide then
-      if activeSources[i].glideFromPitch then
-         local glideTime =  (now - activeSources[i].glideStart)
-         newPitch = mapInto(glideTime, 0, glideDuration,
-                                  activeSources[i].glideFromPitch,
-                                  pitches[activeSources[i].key])
-         if glideTime > glideDuration then
-            activeSources[i].glideFromPitch = nil
+         if activeSources[i].glideFromPitch then
+            local glideTime =  (now - activeSources[i].glideStart)
+            newPitch = mapInto(glideTime, 0, glideDuration,
+                               activeSources[i].glideFromPitch,
+                               pitches[activeSources[i].key])
+            if glideTime > glideDuration then
+               newPitch = pitches[activeSources[i].key]
+               activeSources[i].glideFromPitch = nil
+            end
          end
-      end
       end
       
       if vibrato then
-      local vibratoSmallPitchDiff =  ((pitches[activeSources[i].key] -  pitches[activeSources[i].key+1])) 
-      local vibratoPitchOffset = math.sin(time * vibratoSpeed) *  vibratoSmallPitchDiff/(vibratoStrength) -- [-1, 1]
-      if activeSources[i].glideFromPitch then
-         newPitch = newPitch + (vibratoPitchOffset)/2
-      else
-         newPitch =  pitches[activeSources[i].key]  + (vibratoPitchOffset)--(math.sin(time*vibratoSpeed)/vibratoStrength)
-      end
+         local vibratoSmallPitchDiff =  ((pitches[activeSources[i].key] -  pitches[activeSources[i].key+1])) 
+         local vibratoPitchOffset = math.sin(time * vibratoSpeed) *  vibratoSmallPitchDiff/(vibratoStrength) -- [-1, 1]
+         if activeSources[i].glideFromPitch then
+            newPitch = newPitch + (vibratoPitchOffset)/2
+         else
+            newPitch =  pitches[activeSources[i].key]  + (vibratoPitchOffset)--(math.sin(time*vibratoSpeed)/vibratoStrength)
+         end
       end
 
       -- pitch knob
@@ -265,7 +268,7 @@ while(run) do
                print('vibratoStrength', vibratoStrength)
 
             else
-               print('knob', b,c)
+               --print('knob', b,c)
             end
             
             
