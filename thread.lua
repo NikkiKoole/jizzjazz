@@ -18,7 +18,7 @@ channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
 
-soundData = love.sound.newSoundData( 'assets/oscillators/AKWF_fmsynth_0101.wav' )
+soundData = love.sound.newSoundData( 'assets/oscillators/AKWF_fmsynth/AKWF_fmsynth_0101.wav' )
 sound = love.audio.newSource(soundData, 'static')
 
 
@@ -34,7 +34,7 @@ adsr = {
    release = .2,
 }
 
-glide = true
+glide = false
 glideDuration = .05
 
 vibrato = true

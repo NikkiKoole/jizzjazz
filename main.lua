@@ -102,24 +102,92 @@ function love.mousepressed(x,y)
       love.mouse.setCursor(cursors.arrow)
       dragging = 'all'
    end
-   if x> 12 and y > 100 then
+
+   
+   -- if x> 12 and y > 100 then
       
-      local index = (math.floor((x-12)/150) * 30) + math.floor((y-100)/20) + 1
-      if index <= #oscillators then
-         print(oscillators[index])
-         channel.main2audio:push({osc= "assets/oscillators/"..oscillators[index]});
-      end
+   --    local index = (math.floor((x-12)/150) * 30) + math.floor((y-100)/20) + 1
+   --    if index <= #oscillators then
+   --       print(oscillators[index])
+   --       channel.main2audio:push({osc= "assets/oscillators/"..oscillators[index]});
+   --    end
       
-   end
+   -- end
    
 end
+
+
+function handleBrowserClick(x,y)
+   if x> 20 and y > 200 then
+      local index = (math.floor((x-20)/200) * 26) + math.floor((y-200)/20) + 1
+      if (index <= #browser.directories) then
+         if (browser.directories[index] == '..') then
+            browser = fileBrowser("assets/oscillators" )
+         else
+            browser = fileBrowser("assets/oscillators",  browser.directories[index] )
+         end
+      else
+         local file =  browser.files[index - #browser.directories]
+         local path
+         if browser.subdir then
+            path = browser.subdir..'/'..file
+         else
+            path = file
+         end
+         
+         channel.main2audio:push({osc= "assets/oscillators/"..path});
+      end
+   end
+end
+
+
+
+ function renderBrowser()
+   local runningX, runningY
+   runningX = 20
+   runningY = 200
+   maxY = 700
+   local buttonWidth = 200
+   local buttonHeight = 20
+   if browser then
+     
+      if #browser.directories > 0 then
+         for i =1,  #browser.directories do
+
+            love.graphics.setColor(0.52, 0, 0.03)
+            love.graphics.rectangle('fill', runningX, runningY, buttonWidth, buttonHeight)
+            love.graphics.setColor(1,1,1)
+            love.graphics.print(browser.directories[i], runningX, runningY )
+            runningY = runningY + 20
+            if runningY > maxY then
+               runningX = runningX + 200
+               runningY = 200
+            end
+         end
+      end
+      if #browser.files > 0 then
+         for i =1,  #browser.files do
+            love.graphics.setColor(.1,.1,.1)
+            love.graphics.print(string.gsub(browser.files[i], '.wav', ''), runningX, runningY )
+            runningY = runningY + 20
+            if runningY > maxY then
+               runningX = runningX + 200
+               runningY = 200
+            end
+         end
+      end
+      
+      
+   end
+   end
+
 
 function round(num, numDecimalPlaces)
    local mult = 10^(numDecimalPlaces or 0)
    return math.floor(num * mult + 0.5) / mult
 end
 
-function love.mousereleased()
+function love.mousereleased(x,y)
 
    if dragging and dragging.moveWhole then
       dict[dragging.wasAt] = nil
@@ -166,6 +234,8 @@ function love.mousereleased()
    
    dragging = false
    love.mouse.setCursor(cursors.arrow)
+
+   handleBrowserClick(x,y)
 
 end
 
@@ -214,21 +284,6 @@ function love.mousemoved(x,y,dx,dy)
    
 end
 
--- function recursiveEnumerate(folder, fileTree)
---    local lfs = love.filesystem
---    local filesTable = lfs.getDirectoryItems(folder)
---    for i,v in ipairs(filesTable) do
---       local file = folder.."/"..v
---       if lfs.isFile(file) then
---          fileTree = fileTree.."\n"..file
---       elseif lfs.isDirectory(file) then
---          fileTree = fileTree.."\n"..file.." (DIR)"
---          fileTree = recursiveEnumerate(file, fileTree)
---       end
---    end
---    return fileTree
--- end
- 
 
 function love.load()
    thread = love.thread.newThread( 'thread.lua' )
@@ -275,10 +330,43 @@ function love.load()
 
   --filesString = recursiveEnumerate("assets/oscillators", "")
   --print(filesString)
-  oscillators = love.filesystem.getDirectoryItems("assets/oscillators")
-  --print(inspect(love.filesystem.getDirectoryItems("assets/oscillators")))
+   --oscillators = love.filesystem.getDirectoryItems("assets/oscillators")
+   browser = fileBrowser("assets/oscillators")
+   --print(inspect(browser))
 
 end
+
+function fileBrowser(rootPath, subdir)
+   local all
+   local path
+
+   if subdir then
+      path = rootPath..'/'..subdir
+      --all = love.filesystem.getDirectoryItems(rootPath..'/'..subdir);
+   else
+      path = rootPath
+      --all = love.filesystem.getDirectoryItems(rootPath);
+   end
+   all = love.filesystem.getDirectoryItems(path);
+   local result = {root=rootPath, subdir=subdir, files={}, directories={}}
+
+   if subdir then
+      table.insert(result.directories, '..')
+   end
+   
+   for i= 1, #all do
+      local t = love.filesystem.getInfo(path..'/'..all[i]).type
+      if t == 'file' then
+         table.insert(result.files, all[i])
+      end
+      if t == 'directory' then
+         table.insert(result.directories, all[i])
+      end
+   end
+   return result
+   --print(inspect(love.filesystem.getDirectoryItems(rootPath)))
+end
+
 
 function mapInto(x, in_min, in_max, out_min, out_max)
    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -370,20 +458,27 @@ function love.draw()
    love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
    love.graphics.setColor(0.2, 0.2, 0.2)
    love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
+
+
+
+
+   renderBrowser()
+
+  
    --love.graphics.print("C maj 7 dim", 12, 120)
 
    
-   love.graphics.setColor(0.8, 0.8, 0.8)
-   local rows = 30
-   for i =1, #oscillators do
-      local j = i-1
-      love.graphics.rectangle('line', 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20, 150, 20)
-   end
-   love.graphics.setColor(0.2, 0.2, 0.2)
+   -- love.graphics.setColor(0.8, 0.8, 0.8)
+   -- local rows = 30
+   -- for i =1, #oscillators do
+   --    local j = i-1
+   --    love.graphics.rectangle('line', 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20, 150, 20)
+   -- end
+   -- love.graphics.setColor(0.2, 0.2, 0.2)
    
-   for i =1, #oscillators do
-      local j = i-1
-      love.graphics.print(string.gsub(oscillators[i], '.wav', ''), 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20)
-   end
+   -- for i =1, #oscillators do
+   --    local j = i-1
+   --    love.graphics.print(string.gsub(oscillators[i], '.wav', ''), 12 + math.floor(j/rows)*150, 100 + ((j)%rows)*20)
+   -- end
    
 end
