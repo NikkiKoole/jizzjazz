@@ -27,16 +27,17 @@ activeSources = {}
 pitches = {}
 
 adsr = {
-   attack = .1,
+   attack = .001,
    max   = 0.8,
-   decay = 0.1,
+   decay = 0.0,
    sustain= 0.8,
-   release = .1,
+   release = .2,
 }
 
---glide = true
---glideDuration = .05
+glide = true
+glideDuration = .005
 
+vibrato = false
 vibratoSpeed = 96/96
 vibratoStrength = 10  -- this should be in semitones
 
@@ -105,22 +106,11 @@ function playNote(semitone, velocity)
       s.sound:setPitch(pitches[semitone])
       s.sound:setVolume(0)
       s.sound:play()
+
+    
       table.insert(activeSources, s)
-
-      -- chorus!!! 
-      -- local echo = {sound=sound:clone(), key=semitone, noteOnTime=now+0.005}
-      -- echo.sound:setLooping(true)
-      -- echo.sound:setPitch(pitches[semitone]*0.999)
-      -- echo.sound:setVolume(0)
-      -- echo.sound:play()
-      -- table.insert(activeSources, echo)
-
-      -- echo2 = {sound=sound:clone(), key=semitone, noteOnTime=now+0.05 }
-      -- echo2.sound:setLooping(true)
-      -- echo2.sound:setPitch(pitches[semitone]*1.002)
-      -- echo2.sound:setVolume(0)
-      -- echo2.sound:play()
-      -- table.insert(activeSources, echo2)
+      
+    
    end
    
 end
@@ -144,6 +134,9 @@ function stopNote(semitone)
          activeSources[i].noteOffTime = now
          activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          activeSources[i].released = true
+
+         
+         
       end
    end
 end
@@ -183,18 +176,19 @@ while(run) do
    
    for i =1, #activeSources do
       -- attack, decay, sustain
+      --print( activeSources[i].noteOffTime)
       local v,p = getVolumeAndPhaseASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, asdr)
-      --print(v,p)
       activeSources[i].sound:setVolume(v)
- 
 
-
+         
 
 
       
       -- glide / portamento
       local pitch =  activeSources[i].sound:getPitch()
       local newPitch = pitch
+
+      if glide then
       if activeSources[i].glideFromPitch then
          local glideTime =  (now - activeSources[i].glideStart)
          newPitch = mapInto(glideTime, 0, glideDuration,
@@ -204,8 +198,9 @@ while(run) do
             activeSources[i].glideFromPitch = nil
          end
       end
-
-      -- vibrato
+      end
+      
+      if vibrato then
       local vibratoSmallPitchDiff =  ((pitches[activeSources[i].key] -  pitches[activeSources[i].key+1])) 
       local vibratoPitchOffset = math.sin(time * vibratoSpeed) *  vibratoSmallPitchDiff/(vibratoStrength) -- [-1, 1]
       if activeSources[i].glideFromPitch then
@@ -213,7 +208,7 @@ while(run) do
       else
          newPitch =  pitches[activeSources[i].key]  + (vibratoPitchOffset)--(math.sin(time*vibratoSpeed)/vibratoStrength)
       end
-
+      end
 
       -- pitch knob
       if activeSources[i].pitchDelta then
@@ -230,10 +225,16 @@ while(run) do
    
    for i = #activeSources, 1, -1 do
       if activeSources[i].released == true then
+         local remove = false
          if activeSources[i].sound:getVolume() < 0.0001 then
             activeSources[i].sound:stop()
+            remove = true
+         end
+         
+         if remove then
             table.remove(activeSources, i)
          end
+
       end
    end
 
@@ -283,6 +284,15 @@ while(run) do
    local v = channel.main2audio:pop();
    if v then
       if (v == 'quit') then
+         for i = 1, #activeSources do
+            activeSources[i].sound:stop()
+            if activeSources[i].extra then
+               for j=1,  #activeSources[i].extra do
+                  activeSources[i].extra[j].sound:stop()
+               end
+            end
+         end
+         
          luamidi.gc()
          run = false
          love.thread.getChannel( 'audio2main' ):push('quit')
