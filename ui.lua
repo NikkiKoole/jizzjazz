@@ -28,6 +28,7 @@ function draw_button(x,y,p, run)
 
    end
 
+ 
    if run then
       local mx, my = love.mouse.getPosition( )
       if pointInRect(mx,my, x,y,cellWidth,cellHeight) then
@@ -129,6 +130,28 @@ function handleMouseClickStart()
    end
    mouseState.lastDown =  mouseState.down
 end
+
+
+function drawToggle(id, x,y, state)
+
+   if state then
+      love.graphics.rectangle("fill", x,y,24,24)
+   else
+      
+      love.graphics.rectangle("line", x,y,24,24)
+   end
+   local mx, my = love.mouse.getPosition( )
+
+   if mouseState.click then
+      if pointInRect(mx,my, x,y,20,20) then
+         return {value= not state}
+      end
+   end
+   
+   return {value=nil}
+
+end
+
 
 function v_slider(id, x, y, height, v, min, max)
    love.graphics.setColor(0.3, 0.3, 0.3)
@@ -301,7 +324,7 @@ function draw_knob(id, x,y, v, min, max)
          result = mapInto(a, math.pi, -math.pi, min, max)
 
          local diff = (lastDraggedElement.lastAngle -  a)
-         print(diff)
+
          if math.abs(diff) > math.pi or diff == 0 then
             if v > result then
                result = max 

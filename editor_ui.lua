@@ -1,16 +1,10 @@
 
-
-
 function drawRectangle(x,y,w,h, alpha, fill, out)
    love.graphics.setColor(fill[1], fill[2], fill[3], alpha)
    love.graphics.rectangle("fill", x , y, w, h)
    love.graphics.setColor(out[1], out[2], out[3], alpha)
    love.graphics.rectangle("line", x , y, w, h)
 end
-
-
-
-
 
 function renderLabel(str, x,y)
    love.graphics.setColor(0,0,0)
@@ -21,8 +15,8 @@ end
 
 
 
-function renderEQ(x, y)
-
+function renderEQ(eq, x, y)
+  
      local runningY = y
      local knob
      renderLabel('Hz', x+110 - getStringWidth('Hz')/2 , y-50)
@@ -35,9 +29,10 @@ function renderEQ(x, y)
      for i =1, #labels do
         runningY = y+ (i-1)*50
         renderLabel(labels[i], x, runningY-10)
+        
         local e = eq[labels[i]]
-       
-        if e.frequency then
+        if e then
+           if e.frequency then
            local max = 48000/2
            local min = 10
 
@@ -82,29 +77,29 @@ function renderEQ(x, y)
               channel.main2audio:push ( {eq = eq} );
            end
         end
-        
-     end
+        end
+     
      runningY = runningY + 50
 
-     renderLabel('fade out', x, runningY-10)
-     knob = h_slider('fade out', x + 100, runningY-10, 200, eq.fadeout, 0.0, activeSoundData:getDuration()-0.001 )
-     if knob.value ~= nil then
-        eq.fadeout = knob.value
-        channel.main2audio:push ( {eq = eq} );
+     -- renderLabel('fade out', x, runningY-10)
+     -- knob = h_slider('fade out', x + 100, runningY-10, 200, eq.fadeout or 0, 0.0, activeSoundData:getDuration()-0.001 )
+     -- if knob.value ~= nil then
+     --    eq.fadeout = knob.value
+     --    channel.main2audio:push ( {eq = eq} );
+     -- end
+     -- runningY = runningY + 50
+     -- renderLabel('fade in', x, runningY-10)
+     -- knob = h_slider('fade in', x + 100, runningY-10, 200, eq.fadein or 0 , 0.0, activeSoundData:getDuration()-0.001 )
+     -- if knob.value ~= nil then
+     --    eq.fadein = knob.value
+     --    channel.main2audio:push ( {eq = eq} );
+     -- end
      end
-     runningY = runningY + 50
-     renderLabel('fade in', x, runningY-10)
-     knob = h_slider('fade in', x + 100, runningY-10, 200, eq.fadein, 0.0, activeSoundData:getDuration()-0.001 )
-     if knob.value ~= nil then
-        eq.fadein = knob.value
-        channel.main2audio:push ( {eq = eq} );
-     end
-
      love.graphics.setLineWidth(1)
 
   end
 
-function renderADSREnvelope(x, y, width, height)
+function renderADSREnvelope(adsr, x, y, width, height)
      love.graphics.setLineWidth(3)
      love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
      love.graphics.rectangle("fill", x, y, width, height)

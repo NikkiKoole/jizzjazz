@@ -24,8 +24,6 @@ function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
    
    for i= 1, #all do
       local t = love.filesystem.getInfo(path..'/'..all[i]).type
-      print(inspect(allowedExtensions))
-
       
       if t == 'file' then
          
@@ -49,7 +47,6 @@ function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
             directories=directories,
             allowedExtensions=allowedExtensions,
             allowedToUseFolders=allowedToUseFolders}
-   --print(inspect(love.filesystem.getDirectoryItems(rootPath)))
 end
 
 

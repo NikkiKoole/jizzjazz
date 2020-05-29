@@ -2,6 +2,7 @@ inspect = require "inspect"
 require 'ui'
 require 'editor_ui'
 require 'musicBar'
+require 'instrument'
 require 'fileBrowser'
 local thread -- Our thread object.
 --luamidi = require "luamidi"
@@ -29,8 +30,6 @@ function love.wheelmoved(a,b)
 end
 
 
-
-
 function love.update(dt)
     local error = thread:getError()
     assert( not error, error )
@@ -44,10 +43,18 @@ function love.update(dt)
           local number = math.floor(v.playSemitone / 12)
           lastHitNote =  names[(v.playSemitone % 12)+1]..number
        end
-       if v.soundData then
-          activeSoundData = v.soundData
+       --if v.soundData then
+       --   activeSoundData = v.soundData
+       --end
+       if v.instrument then
+          instrument = v.instrument
        end
-       
+       if v.eq then
+          instrument.sounds[1].eq = v.eq
+       end
+       if v.soundData then
+          renderSoundData = v.soundData
+       end
        
     end
 end
@@ -77,7 +84,7 @@ function love.mousereleased(x,y)
    dragging = false
    love.mouse.setCursor(cursors.arrow)
 
-   browser = handleBrowserClick(browser, x,y)
+   --browser = handleBrowserClick(browser, x,y)
    lastDraggedElement = nil
 end
 
@@ -90,12 +97,8 @@ end
 
 
 function love.load()
-   thread = love.thread.newThread( 'thread.lua' )
-   thread:start( )
-   channel		= {};
-   channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
-   channel.main2audio	= love.thread.getChannel ( "main2audio" ); -- from main
    
+  
    
    --love.window.setMode(1024, 768)
    cursors = {hand=love.mouse.getSystemCursor("hand"),
@@ -114,7 +117,7 @@ function love.load()
    
    lastClickedFile = nil
    lastHitNote = nil
-   activeSoundData = nil
+   --activeSoundData = nil
 
    red = {0.52, 0, 0.03}
 
@@ -126,71 +129,20 @@ function love.load()
       offset = {x=0, y=0}
    }
 
-   adsr = {
-      attack = 0.01,
-      max   = .90,
-      decay = 0.0,
-      sustain= .70,
-      release = .02,
-   }
+   instrument = getDefaultInstrument()
+   renderSoundData = nil
+
+   thread = love.thread.newThread( 'thread.lua' )
+   thread:start(instrument )
+   channel		= {};
+   channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
+   channel.main2audio	= love.thread.getChannel ( "main2audio" ); -- from main
    
-   eq = {
-      fadeout = 0,
-      fadein = 0,
-      lowpass = {
-         enabled=false,
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      highpass = {
-         enabled=false,
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      bandpass = {
-         enabled=false,
+   --print(inspect(instrument))
+   
 
-
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      notch = {
-         enabled=false,
-
-
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      allpass = {
-         enabled=false,
-
-
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      lowshelf = {
-         enabled=false,
-
-         gain = 0,  -- [-60,60]
-         wet = 1,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      },
-      highshelf = {
-         enabled=false,
-
-         gain = 0,  -- [-60,60]
-         wet = 0,   -- [0, 1]
-         q = 1,     -- [0, 100]
-         frequency = 0 -- [0, samplerate/2]
-      }
-
-   }
+   --channel.main2audio:push( {instrument=instrument} );
+   --pus
    --print(inspect(browser))
 
 end
@@ -221,16 +173,70 @@ function love.draw()
 
    --renderMusicBar(musicBar)
    
-   renderBrowser(browser)
+  -- renderBrowser(browser)
 
    if lastHitNote then
       love.graphics.print(lastHitNote, 12, 120)
    end
+
+
    
-   if activeSoundData then
-      renderWave(activeSoundData, 50, 100, 300, 100)
-   end
   
-  --renderEQ(1024 - 400, 768- 400)
-  renderADSREnvelope(400, 50, 250, 100)
+   renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 50, 250, 100)
+
+   if renderSoundData then
+      renderWave( renderSoundData, 1024-400, 400-30, 300, 100)
+   end
+   renderEQ(instrument.sounds[1].eq, 1024 - 400, 768- 250)
+
+   
+   love.graphics.setColor(red[1],red[2],red[3])
+   love.graphics.setLineWidth(3)
+
+   
+
+   
+   local knob = drawToggle('useLooping', 100,100, instrument.settings.useLooping)
+
+   if knob.value ~= nil then
+      instrument.settings.useLooping = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = drawToggle('glide', 100,100+ 40, instrument.settings.glide)
+   if knob.value ~= nil then
+      instrument.settings.glide = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = drawToggle('useSustain', 100,100+ 80, instrument.settings.useSustain)
+   if knob.value ~= nil then
+      instrument.settings.useSustain = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+
+    knob = drawToggle('mono', 100,100+ 120, instrument.settings.monophonic)
+   if knob.value ~= nil then
+      instrument.settings.monophonic = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+     knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
+   if knob.value ~= nil then
+      instrument.settings.vibrato = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+   
+   love.graphics.setColor(0,0,0)
+   renderLabel("loop", 100+50,100)
+   renderLabel("glide", 100+50,100+40)
+   renderLabel("sustain", 100+50,100+80)
+   renderLabel("monophonic", 100+50,100+120)
+    renderLabel("vibrato", 100+50,100+160)
 end
