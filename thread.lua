@@ -37,18 +37,34 @@ adsr = {
    release = .02,
 }
 
-glide = false        -- glide is always monophonic
-glideDuration = .5
-monophonic = false
-useSustain = true
-useEcho = false
+-- settings = {
+--    glide = false,        -- glide is always monophonic
+--    glideDuration = .5,
+--    monophonic = false,
+--    useSustain = true,
+--    useEcho = false,
 
-vibrato = true
-vibratoSpeed = 96/96
-vibratoStrength = 10  -- this should be in semitones
+--    vibrato = true,
+--    vibratoSpeed = 96/96,
+--    vibratoStrength = 10,  -- this should be in semitones
 
-transpose = 0
-filterfreq = 1
+--    transpose = 0,
+--    filterfreq = 1,
+-- }
+
+
+   glide = false       -- glide is always monophonic
+   glideDuration = .5
+   monophonic = false
+   useSustain = true
+   useEcho = false
+
+   vibrato = true
+   vibratoSpeed = 96/96
+   vibratoStrength = 10  -- this should be in semitones
+
+   transpose = 0
+   filterfreq = 1
 
 function mapInto(x, in_min, in_max, out_min, out_max)
    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -102,22 +118,26 @@ end
 
 function playNote(semitone, velocity)
 
-   love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
+   --local transpose = 
+   
+   love.thread.getChannel( 'audio2main' ):push(
+      {playSemitone=semitone+transpose})
+   
 
    local usedSource = nil
    if (glide or monophonic) and #activeSources > 0 then
       local index = findIndexFirstNonEchoNote()
       assert(#activeSources == 1 or index > 1)
-       activeSources[index].key = semitone
-       activeSources[index].released = nil
-       activeSources[index].noteOnTime=now
-       
+      activeSources[index].key = semitone
+      activeSources[index].released = nil
+      activeSources[index].noteOnTime=now
+      
       if glide then
          activeSources[index].glideFromPitch = activeSources[index].sound:getPitch()
          activeSources[index].glideStart = now
          activeSources[index].noteOffTime=-1
       end
-       if monophonic then
+      if monophonic then
          activeSources[index].noteOffTime=-1
       end
       if useSustain == false then
@@ -150,7 +170,7 @@ function playNote(semitone, velocity)
    end
 
    if useEcho then
---      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
+      --      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
       for i = 1, 5 do
          local echoTimeOffset = 0.5*i
          local echoSound = {sound=usedSource.sound:clone(),
@@ -171,10 +191,10 @@ function playNote(semitone, velocity)
          echoSound.sound:play()
          table.insert(activeSources, echoSound)
       end
-    end
-    --print('inserting echo')
-    --
-        
+   end
+   --print('inserting echo')
+   --
+   
    --print(inspect(usedSource))
    
 end
@@ -228,27 +248,31 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,asdr, isEcho)
          --print('attack phase', volume)
       elseif attackTime <= adsr.attack + adsr.decay then
          volume = mapInto(attackTime - adsr.attack, 0, adsr.decay, adsr.max, adsr.sustain)
-          --print('decay phase', volume)
+         --print('decay phase', volume)
       elseif attackTime > adsr.attack + adsr.decay then
          volume = adsr.sustain
-        -- print('sustain phase', volume)
+         -- print('sustain phase', volume)
 
       end
       
    else
       local releaseTime = now - noteOffTime
       volume = mapInto(releaseTime, adsr.release, 0, 0, noteOffVolume)
-       --print('release phase', volume)
+      --print('release phase', volume)
 
    end
-    if attackTime < 0 then
-       volume = 0
-    end
-    
-    if volume < 0 then volume = 0 end
+   if attackTime < 0 then
+      volume = 0
+   end
+   
+   if volume < 0 then volume = 0 end
    return volume  
 end
 
+local myInstrument = {
+   -- can have many sounds
+   
+}
 
 local mySound = {
    -- can be of a few kinds
@@ -257,8 +281,12 @@ local mySound = {
    -- 3) looping samples, with start and end looppoints  -- queue
    source='somewav',
    asdr = {},
-   usesLoopPoints = {12,23230} or nil
-   
+   usesLoopPoints = {12,23230} or nil,
+}
+
+local myNote = {
+   noteOnTime=0,
+   noteOffTime=0
 }
 
 
@@ -311,7 +339,7 @@ while(run) do
       if newPitch < 0.00001 then newPitch = 0.00001 end
       activeSources[i].sound:setPitch(newPitch)
 
-   
+      
    end
 
    
@@ -330,7 +358,7 @@ while(run) do
       end
    end
 
-  
+   
    
    if luamidi and luamidi.getinportcount() > 0 then
       --print('yo')
@@ -393,19 +421,19 @@ while(run) do
       
       if v.osc  then
          useLooping = true
-          oscUrl = v.osc
-          soundData = love.sound.newSoundData( v.osc )
-      --    -- sone.filter(soundData, {
-      --    --                 type = "highpass",
-      --    --                 frequency = 5000,
-      --    -- })
-      --    sone.filter(soundData, {
-      --                    type = "lowpass",
-      --                    frequency = filterfreq,
-      --    })
-      --    --print(sound)
-          sound = love.audio.newSource(soundData, 'static')
-          love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
+         oscUrl = v.osc
+         soundData = love.sound.newSoundData( v.osc )
+         --    -- sone.filter(soundData, {
+         --    --                 type = "highpass",
+         --    --                 frequency = 5000,
+         --    -- })
+         --    sone.filter(soundData, {
+         --                    type = "lowpass",
+         --                    frequency = filterfreq,
+         --    })
+         --    --print(sound)
+         sound = love.audio.newSource(soundData, 'static')
+         love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
       end
       if v.adsr then
          print('adsr!', inspect(v.adsr))
@@ -419,52 +447,52 @@ while(run) do
          --                  frequency =  v.eq.lowpass.frequency,
          --                  Q=v.eq.lowpass.q,
          --                  gain = v.eq.lowpass.gain                      
-                        
+         
          -- })
          --sone.fadeOut(soundData, 0.15)
          --sone.amplify(soundData, v.eq.lowpass.gain)
 
 
          
-       
+         
          
          sone.filter(soundData, {
-                          type = "lowshelf",
-                          frequency = v.eq.lowshelf.frequency,
-                          Q=v.eq.lowshelf.q,
-                          wet=v.eq.lowshelf.wet,
-                          gain = v.eq.lowshelf.gain                      
+                        type = "lowshelf",
+                        frequency = v.eq.lowshelf.frequency,
+                        Q=v.eq.lowshelf.q,
+                        wet=v.eq.lowshelf.wet,
+                        gain = v.eq.lowshelf.gain                      
                         
          })
          sone.filter(soundData, {
-                          type = "highshelf",
-                          frequency = v.eq.highshelf.frequency,
-                          Q=v.eq.highshelf.q,
-                          wet=v.eq.highshelf.wet,
-                          gain = v.eq.highshelf.gain                      
+                        type = "highshelf",
+                        frequency = v.eq.highshelf.frequency,
+                        Q=v.eq.highshelf.q,
+                        wet=v.eq.highshelf.wet,
+                        gain = v.eq.highshelf.gain                      
                         
          })
 
          sone.filter(soundData, {
-                          type = "highpass",
-                          frequency = v.eq.highpass.frequency,
-                          Q=v.eq.highpass.q,
-                          wet=v.eq.highpass.wet,
+                        type = "highpass",
+                        frequency = v.eq.highpass.frequency,
+                        Q=v.eq.highpass.q,
+                        wet=v.eq.highpass.wet,
          })
 
          sone.filter(soundData, {
-                          type = "lowpass",
-                          frequency = v.eq.lowpass.frequency,
-                          Q=v.eq.lowpass.q,
-                          wet=v.eq.lowpass.wet,
+                        type = "lowpass",
+                        frequency = v.eq.lowpass.frequency,
+                        Q=v.eq.lowpass.q,
+                        wet=v.eq.lowpass.wet,
          })
 
-        
+         
          sone.filter(soundData, {
-                          type = "bandpass",
-                          frequency = v.eq.bandpass.frequency,
-                          Q=v.eq.bandpass.q,
-                          wet=v.eq.bandpass.wet,
+                        type = "bandpass",
+                        frequency = v.eq.bandpass.frequency,
+                        Q=v.eq.bandpass.q,
+                        wet=v.eq.bandpass.wet,
 
          })
          -- print(inspect(v.eq))
@@ -476,7 +504,7 @@ while(run) do
       
       --channel.main2audio:push ( {eqcutoff = eqcutoff.value} );
       
-            --channel.a:push ( "bar" )
+      --channel.a:push ( "bar" )
    end
    
    

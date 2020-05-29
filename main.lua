@@ -110,7 +110,7 @@ function love.load()
    musicBar = createMusicBar()
 
   
-   browser = fileBrowser("assets", {"oscillators"})
+   browser = fileBrowser("assets", {"oscillators"}, {"wav", "WAV"})
    
    lastClickedFile = nil
    lastHitNote = nil
@@ -228,9 +228,9 @@ function love.draw()
    end
    
    if activeSoundData then
-      --renderWave(activeSoundData, 50, 100, 300, 100)
+      renderWave(activeSoundData, 50, 100, 300, 100)
    end
   
   --renderEQ(1024 - 400, 768- 400)
-  --renderADSREnvelope(400, 50, 250, 100)
+  renderADSREnvelope(400, 50, 250, 100)
 end

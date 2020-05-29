@@ -10,7 +10,7 @@ function createFilePath(root, subdirs)
 end
 
 
-function fileBrowser(rootPath, subdirs)
+function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
    local path = createFilePath(rootPath, subdirs)
    local all = love.filesystem.getDirectoryItems(path);
    local files={}
@@ -24,8 +24,20 @@ function fileBrowser(rootPath, subdirs)
    
    for i= 1, #all do
       local t = love.filesystem.getInfo(path..'/'..all[i]).type
+      print(inspect(allowedExtensions))
+
+      
       if t == 'file' then
-         table.insert(files, all[i])
+         
+         if allowedExtensions then
+            for j = 1, #allowedExtensions do
+               if stringEndsWith(all[i], allowedExtensions[j]) then
+                  table.insert(files, all[i])
+               end
+            end
+         else
+            table.insert(files, all[i])
+         end
       end
       if t == 'directory' then
          table.insert(directories, all[i])
@@ -34,7 +46,9 @@ function fileBrowser(rootPath, subdirs)
    return  {root=rootPath,
             subdirs=subdirs,
             files=files,
-            directories=directories}
+            directories=directories,
+            allowedExtensions=allowedExtensions,
+            allowedToUseFolders=allowedToUseFolders}
    --print(inspect(love.filesystem.getDirectoryItems(rootPath)))
 end
 
@@ -72,8 +86,15 @@ function renderBrowser(browser)
             if (lastClickedFile == browser.files[i]) then
                love.graphics.setColor(.5,.1,.1)
             end
+
+            local filename = browser.files[i]
+            if browser.allowedExtensions then
+               for j = 1, #browser.allowedExtensions do
+                  filename = string.gsub(filename, '.'..browser.allowedExtensions[j], '')
+               end
+            end
             
-            love.graphics.print(string.gsub(browser.files[i], '.wav', ''), runningX, runningY )
+            love.graphics.print(filename, runningX, runningY )
             runningY = runningY + 20
             if runningY > maxY then
                runningX = runningX + 200
@@ -95,17 +116,21 @@ function handleBrowserClick(browser, x,y)
          else
             table.insert(browser.subdirs,  browser.directories[index])
          end
-         
-         browser = fileBrowser(browser.root, browser.subdirs)
+
+         browser = fileBrowser(browser.root, browser.subdirs,
+                               browser.allowedExtensions,
+                               browser.allowedToUseFolders)
       else
          local file =  browser.files[index - #browser.directories]
          local path = createFilePath(browser.root, browser.subdirs)
 
          
-         if stringEndsWith(file, '.wav') then
+         --if stringEndsWith(file, '.wav') or stringEndsWith(file, '.WAV')   then
+         if file then
             lastClickedFile = file
             channel.main2audio:push({osc= path..'/'..file})
          end
+         --end
          
       end
    end
