@@ -20,7 +20,6 @@ function getDefaultInstrument()
    return {
       settings = {
          useLooping = true,   -- whne creating the sound this decides static or queue 
-         --useStatic = true,
          glide = false,        -- glide is always monophonic
          glideDuration = .025,
          monophonic = false,
@@ -30,8 +29,7 @@ function getDefaultInstrument()
          vibrato = true,
          vibratoSpeed = 96/96,
          vibratoStrength = 10,  -- this should be in semitones
-
-         transpose = 0,
+        
       },
       --"assets/samples/rhodes/A_055__G3_3.wav"
       --"assets/samples/SIDSQUAW.wav"
@@ -41,12 +39,13 @@ function getDefaultInstrument()
                path= "assets/samples/SIDSQUAW.wav" ,
                soundData=nil,
                sound=nil,
+               transpose = 0,
             }},
             adsr = {
                attack = 0.01,
-               max   = .90,
+               max   = .50,
                decay = 0.0,
-               sustain= .70,
+               sustain= .50,
                release = .02,
             },
             eq = {

@@ -110,10 +110,11 @@ function playNote(semitone, velocity, instrument)
    --local transpose = 
    local settings = instrument.settings
    local sound = instrument.sounds[1]
+   local transpose = sound.samples[1].transpose
    local adsr = sound.adsr
    
    love.thread.getChannel( 'audio2main' ):push(
-      {playSemitone=semitone+settings.transpose})
+      {playSemitone=semitone+transpose})
 
 
    local usedSource = nil
@@ -206,7 +207,8 @@ function stopNote(semitone)
 end
 
 function getPitch(activeSource, offset)
-   local index = activeSource.key + (offset or 0) + instrument.settings.transpose
+   local transpose = instrument.sounds[1].samples[1].transpose
+   local index = activeSource.key + (offset or 0) + transpose
    --print(activeSource.key, index,pitches[index])
    return pitches[index]
 end
@@ -272,7 +274,7 @@ while(run ) do
       if activeSources[i].echoVolumeMultiplier then
          v = v * activeSources[i].echoVolumeMultiplier 
       end
-      
+
 
       activeSources[i].sound:setVolume(v)
       
