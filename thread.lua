@@ -20,7 +20,7 @@ channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 oscUrl = 'assets/samples/rhodes/A_055__G3_3.wav'
 --oscUrl = 'assets/samples/Cymbal.wav'
 --oscUrl = 'assets/samples/Bongo High.wav'
-useLooping = false
+
 soundData = love.sound.newSoundData( oscUrl )
 sound = love.audio.newSource(soundData, 'static')
 --sound:play()
@@ -37,34 +37,21 @@ adsr = {
    release = .02,
 }
 
--- settings = {
---    glide = false,        -- glide is always monophonic
---    glideDuration = .5,
---    monophonic = false,
---    useSustain = true,
---    useEcho = false,
+settings = {
+   useLooping = false,
+   glide = false,        -- glide is always monophonic
+   glideDuration = .5,
+   monophonic = false,
+   useSustain = true,
+   useEcho = false,
 
---    vibrato = true,
---    vibratoSpeed = 96/96,
---    vibratoStrength = 10,  -- this should be in semitones
+   vibrato = true,
+   vibratoSpeed = 96/96,
+   vibratoStrength = 10,  -- this should be in semitones
 
---    transpose = 0,
---    filterfreq = 1,
--- }
+   transpose = 0,
+}
 
-
-   glide = false       -- glide is always monophonic
-   glideDuration = .5
-   monophonic = false
-   useSustain = true
-   useEcho = false
-
-   vibrato = true
-   vibratoSpeed = 96/96
-   vibratoStrength = 10  -- this should be in semitones
-
-   transpose = 0
-   filterfreq = 1
 
 function mapInto(x, in_min, in_max, out_min, out_max)
    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -116,31 +103,31 @@ function findIndexFirstNonEchoNote()
 end
 
 
-function playNote(semitone, velocity)
+function playNote(semitone, velocity, settings)
 
    --local transpose = 
    
    love.thread.getChannel( 'audio2main' ):push(
-      {playSemitone=semitone+transpose})
+      {playSemitone=semitone+settings.transpose})
    
 
    local usedSource = nil
-   if (glide or monophonic) and #activeSources > 0 then
+   if (settings.glide or settings.monophonic) and #activeSources > 0 then
       local index = findIndexFirstNonEchoNote()
       assert(#activeSources == 1 or index > 1)
       activeSources[index].key = semitone
       activeSources[index].released = nil
       activeSources[index].noteOnTime=now
       
-      if glide then
+      if settings.glide then
          activeSources[index].glideFromPitch = activeSources[index].sound:getPitch()
          activeSources[index].glideStart = now
          activeSources[index].noteOffTime=-1
       end
-      if monophonic then
+      if settings.monophonic then
          activeSources[index].noteOffTime=-1
       end
-      if useSustain == false then
+      if settings.useSustain == false then
          activeSources[index].noteOffTime = now  + adsr.attack + adsr.decay + adsr.release 
          activeSources[index].noteOffVolume = adsr.sustain
       end
@@ -152,13 +139,13 @@ function playNote(semitone, velocity)
 
       ----- trigger noteoff immeadially shoudl b
 
-      if useSustain == false then
+      if settings.useSustain == false then
          s.noteOffTime = now  + adsr.attack + adsr.decay + adsr.release
          s.noteOffVolume = adsr.sustain
       end
       -----
 
-      if useLooping then
+      if settings.useLooping then
          s.sound:setLooping(true)
       end
       s.sound:setPitch(getPitch(s))
@@ -169,7 +156,7 @@ function playNote(semitone, velocity)
       usedSource = s
    end
 
-   if useEcho then
+   if settings.useEcho then
       --      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
       for i = 1, 5 do
          local echoTimeOffset = 0.5*i
@@ -182,7 +169,7 @@ function playNote(semitone, velocity)
                             noteOnTime=usedSource.noteOnTime + echoTimeOffset,
                             noteOffVolume = usedSource.noteOffVolume or 0,
                             noteOffTime=usedSource.noteOffTime + echoTimeOffset}
-         if useSustain then
+         if settings.useSustain then
             echoSound.noteOffTime = -1
          end
          echoSound.sound:setLooping(true)
@@ -203,7 +190,7 @@ function stopNote(semitone)
    for i=1, #activeSources do
       if semitone == activeSources[i].key then
          
-         if useSustain == true then
+         if settings.useSustain == true then
             activeSources[i].noteOffTime = now
          end
          
@@ -218,7 +205,7 @@ function stopNote(semitone)
 end
 
 function getPitch(activeSource, offset)
-   local index = activeSource.key + (offset or 0) + transpose
+   local index = activeSource.key + (offset or 0) + settings.transpose
    --print(activeSource.key, index,pitches[index])
    return pitches[index]
 end
@@ -307,22 +294,22 @@ while(run) do
       local pitch =  getPitch(activeSources[i])
       local newPitch = pitch
 
-      if glide then
+      if settings.glide then
          if activeSources[i].glideFromPitch then
             local glideTime =  (now - activeSources[i].glideStart)
-            newPitch = mapInto(glideTime, 0, glideDuration,
+            newPitch = mapInto(glideTime, 0, settings.glideDuration,
                                activeSources[i].glideFromPitch,
                                getPitch(activeSources[i]))
-            if glideTime > glideDuration then
+            if glideTime > settings.glideDuration then
                newPitch = getPitch(activeSources[i])
                activeSources[i].glideFromPitch = nil
             end
          end
       end
       
-      if vibrato then
+      if settings.vibrato then
          local vibratoSmallPitchDiff =  (getPitch(activeSources[i]) - getPitch(activeSources[i], 1) ) 
-         local vibratoPitchOffset = math.sin(time * vibratoSpeed) *  vibratoSmallPitchDiff/(vibratoStrength) -- [-1, 1]
+         local vibratoPitchOffset = math.sin(time * settings.vibratoSpeed) *  vibratoSmallPitchDiff/(settings.vibratoStrength) -- [-1, 1]
          if activeSources[i].glideFromPitch then
             newPitch = newPitch + (vibratoPitchOffset)/2
          else
@@ -375,16 +362,15 @@ while(run) do
 
          if a == 144 then
             --print('midi message play', b)
-            playNote(b, c)
+            playNote(b, c, settings)
          elseif a == 128 then
             stopNote(b)
          elseif a == 176 then
             if b == 2 then
-               vibratoSpeed = 96/ math.max(c,1)
-               print('vibratospeed', vibratoSpeed)
+               settings.vibratoSpeed = 96/ math.max(c,1)
             elseif b == 3 then
-               vibratoStrength = math.max(c,1)
-               print('vibratoStrength', vibratoStrength)
+               settings.vibratoStrength = math.max(c,1)
+
             else
                print('knob', b,c)
             end
@@ -420,7 +406,7 @@ while(run) do
       end
       
       if v.osc  then
-         useLooping = true
+         settings.useLooping = true
          oscUrl = v.osc
          soundData = love.sound.newSoundData( v.osc )
          --    -- sone.filter(soundData, {
