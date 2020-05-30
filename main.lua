@@ -55,6 +55,10 @@ function love.update(dt)
        if v.soundData then
           renderSoundData = v.soundData
        end
+       if v.soundStartPlaying then
+          playingSound = v.soundStartPlaying
+       end
+       
        
     end
 end
@@ -131,6 +135,7 @@ function love.load()
 
    instrument = getDefaultInstrument()
    renderSoundData = nil
+   playingSound = nil
 
    thread = love.thread.newThread( 'thread.lua' )
    thread:start(instrument )
@@ -173,7 +178,7 @@ function love.draw()
 
    --renderMusicBar(musicBar)
    
-  -- renderBrowser(browser)
+   --renderBrowser(browser)
 
    if lastHitNote then
       love.graphics.print(lastHitNote, 12, 120)
@@ -184,9 +189,22 @@ function love.draw()
   
    renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 50, 250, 100)
 
+   
    if renderSoundData then
       renderWave( renderSoundData, 1024-400, 400-30, 300, 100)
    end
+   love.graphics.setColor(0,0,0)
+   if playingSound then
+      if playingSound:isPlaying() then
+         local t =playingSound:tell()/ playingSound:getDuration()
+         local x = 1024-400 + t*(300)
+         love.graphics.line(x, 400-30-50, x, 400-30+100-50 )
+      end
+   end
+   
+   --if (instrument.sounds[1].samples[1].sound) then
+   --   print(instrument.sounds[1].samples[1].sound:isPlaying())
+   --end
    renderEQ(instrument.sounds[1].eq, 1024 - 400, 768- 250)
 
    
@@ -196,10 +214,10 @@ function love.draw()
    
 
    
-   local knob = drawToggle('useLooping', 100,100, instrument.settings.useLooping)
+   local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanillaLooping)
 
    if knob.value ~= nil then
-      instrument.settings.useLooping = knob.value
+      instrument.settings.useVanillaLooping = knob.value
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
@@ -234,7 +252,7 @@ function love.draw()
    end
    
    love.graphics.setColor(0,0,0)
-   renderLabel("loop", 100+50,100)
+   renderLabel("vanilla loop", 100+50,100)
    renderLabel("glide", 100+50,100+40)
    renderLabel("sustain", 100+50,100+80)
    renderLabel("monophonic", 100+50,100+120)

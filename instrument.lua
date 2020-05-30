@@ -19,15 +19,15 @@ end
 function getDefaultInstrument()
    return {
       settings = {
-         useLooping = true,   -- whne creating the sound this decides static or queue 
+         useVanillaLooping = true,   -- whne creating the sound this decides static or queue 
          glide = false,        -- glide is always monophonic
-         glideDuration = .025,
+         glideDuration = .5,
          monophonic = false,
          useSustain = true,
          useEcho = false,
 
          vibrato = true,
-         vibratoSpeed = 96/96,
+         vibratoSpeed = 96/16,
          vibratoStrength = 10,  -- this should be in semitones
         
       },
@@ -36,7 +36,7 @@ function getDefaultInstrument()
       sounds = {
          {
             samples = {{
-               path= "assets/samples/SIDSQUAW.wav" ,
+               path= "assets/samples/rhodes/A_055__G3_3.wav",
                soundData=nil,
                sound=nil,
                transpose = 0,

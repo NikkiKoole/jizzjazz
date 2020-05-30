@@ -119,7 +119,7 @@ function playNote(semitone, velocity, instrument)
 
    local usedSource = nil
    if (settings.glide or settings.monophonic) and #activeSources > 0 then
-      local index = findIndexFirstNonEchoNote()
+      local index = 1 --findIndexFirstNonEchoNote()
       assert(#activeSources == 1 or index > 1)
       activeSources[index].key = semitone
       activeSources[index].released = nil
@@ -138,7 +138,18 @@ function playNote(semitone, velocity, instrument)
          activeSources[index].noteOffVolume = adsr.sustain
       end
 
+      if settings.glide and not settings.useVanillaLooping then
+         -- this is a one-shot just retrigger the sound
+         if not (activeSources[index].sound:isPlaying() ) then
+            activeSources[index].noteOffVolume = -1
+            activeSources[index].sound:play()
+            love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=activeSources[index].sound})
+            
+         end
+      end
+      
       usedSource = activeSources[index]
+--      print('reusing')
    else
 
       local s = {sound=sound.samples[1].sound:clone(), key=semitone, noteOnTime=now, noteOffTime=-1  }
@@ -151,40 +162,41 @@ function playNote(semitone, velocity, instrument)
       end
       -----
 
-      if settings.useLooping then
+      if settings.useVanillaLooping then
          s.sound:setLooping(true)
       end
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
       s.sound:play()
+      love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s.sound})
       table.insert(activeSources, s)
       
       usedSource = s
    end
 
-   if settings.useEcho then
-      --      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
-      for i = 1, 5 do
-         local echoTimeOffset = 0.5*i
-         local echoSound = {sound=usedSource.sound:clone(),
-                            key=usedSource.key,
-                            released = true,
-                            isEcho=true,
-                            echoVolumeMultiplier = 1.0 - (i/10),
-                            echoTimeOffset = echoTimeOffset,
-                            noteOnTime=usedSource.noteOnTime + echoTimeOffset,
-                            noteOffVolume = usedSource.noteOffVolume or 0,
-                            noteOffTime=usedSource.noteOffTime + echoTimeOffset}
-         if settings.useSustain then
-            echoSound.noteOffTime = -1
-         end
-         echoSound.sound:setLooping(true)
-         echoSound.sound:setPitch(getPitch(echoSound))
-         echoSound.sound:setVolume(0)
-         echoSound.sound:play()
-         table.insert(activeSources, echoSound)
-      end
-   end
+   -- if settings.useEcho then
+   --    --      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
+   --    for i = 1, 5 do
+   --       local echoTimeOffset = 0.5*i
+   --       local echoSound = {sound=usedSource.sound:clone(),
+   --                          key=usedSource.key,
+   --                          released = true,
+   --                          isEcho=true,
+   --                          echoVolumeMultiplier = 1.0 - (i/10),
+   --                          echoTimeOffset = echoTimeOffset,
+   --                          noteOnTime=usedSource.noteOnTime + echoTimeOffset,
+   --                          noteOffVolume = usedSource.noteOffVolume or 0,
+   --                          noteOffTime=usedSource.noteOffTime + echoTimeOffset}
+   --       if settings.useSustain then
+   --          echoSound.noteOffTime = -1
+   --       end
+   --       echoSound.sound:setLooping(true)
+   --       echoSound.sound:setPitch(getPitch(echoSound))
+   --       echoSound.sound:setVolume(0)
+   --       echoSound.sound:play()
+   --       table.insert(activeSources, echoSound)
+   --    end
+   -- end
    
 end
 
@@ -196,9 +208,9 @@ function stopNote(semitone)
             activeSources[i].noteOffTime = now
          end
          
-         if activeSources[i].isEcho then
-            activeSources[i].noteOffTime = now + activeSources[i].echoTimeOffset
-         end
+         --if activeSources[i].isEcho then
+         --   activeSources[i].noteOffTime = now + activeSources[i].echoTimeOffset
+         --end
          
          activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          activeSources[i].released = true
@@ -233,23 +245,29 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho)
       
       if attackTime < 0 then
          volume = 0
+         --print('before phase', volume)
+
       elseif attackTime >=0 and attackTime <= adsr.attack then
          volume = mapInto(attackTime, 0, adsr.attack, 0, adsr.max)
          --print('attack phase', volume)
       elseif attackTime <= adsr.attack + adsr.decay then
          volume = mapInto(attackTime - adsr.attack, 0, adsr.decay, adsr.max, adsr.sustain)
          --print('decay phase', volume)
+         --print('decay phase', volume)
+
       elseif attackTime > adsr.attack + adsr.decay then
          volume = adsr.sustain
          -- print('sustain phase', volume)
+         --print('sustain phase', volume)
 
       end
       
    else
       local releaseTime = now - noteOffTime
       volume = mapInto(releaseTime, adsr.release, 0, 0, noteOffVolume)
-      --print('release phase', volume)
-
+      if adsr.release == 0 then
+         volume = 0
+      end
    end
    if attackTime < 0 then
       volume = 0
@@ -271,9 +289,9 @@ while(run ) do
       
       local v = getVolumeASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, instrument.sounds[1].adsr, activeSources[i].isEcho)
       --print(v)
-      if activeSources[i].echoVolumeMultiplier then
-         v = v * activeSources[i].echoVolumeMultiplier 
-      end
+      --if activeSources[i].echoVolumeMultiplier then
+      --   v = v * activeSources[i].echoVolumeMultiplier 
+      --end
 
 
       activeSources[i].sound:setVolume(v)
@@ -401,7 +419,7 @@ while(run ) do
 
       end
       if v.osc  then
-         instrument.settings.useLooping = true
+         instrument.settings.useVanillaLooping = true
          oscUrl = v.osc
          soundData = love.sound.newSoundData( v.osc )
          --    -- sone.filter(soundData, {
@@ -481,6 +499,7 @@ while(run ) do
          instrument.sounds[1].samples[1].soundData = soundData
          instrument.sounds[1].samples[1].sound = sound
          love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
+         --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
       end
       
       --channel.main2audio:push ( {eqcutoff = eqcutoff.value} );
