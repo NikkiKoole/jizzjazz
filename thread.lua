@@ -17,12 +17,62 @@ channel 	= {};
 channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
+
+function writeSoundData(toClone, startPos, endPos)
+   local rate = toClone:getSampleRate( )
+   local bitDepth = toClone:getBitDepth()
+   local channels = toClone:getChannelCount()
+   local sound_data = love.sound.newSoundData((endPos - startPos) + 0, rate, bitDepth, channels)
+   
+   for i = startPos, endPos-1 do
+      sound_data:setSample(i-startPos, toClone:getSample(i)  )
+   end
+  
+   return sound_data
+end
+
+function getQueueable(s)
+    return love.audio.newQueueableSource( s:getSampleRate( ),
+                                          s:getBitDepth(),
+                                          s:getChannelCount(), 8 )
+end
+
+
 instrument = ...
 for i =1 , #instrument.sounds do
-   instrument.sounds[1].samples[1].soundData =
-      love.sound.newSoundData( instrument.sounds[1].samples[1].path )
-   instrument.sounds[1].samples[1].sound =
-      love.audio.newSource(instrument.sounds[1].samples[1].soundData, 'static')
+   local s = love.sound.newSoundData( instrument.sounds[1].samples[1].path )
+
+   local loopStart = instrument.sounds[1].samples[1].loopStart
+   local loopEnd = instrument.sounds[1].samples[1].loopEnd 
+
+   if (loopStart and loopEnd) then
+      instrument.sounds[1].samples[1].soundData = s
+      
+      local begin = writeSoundData(s, 0, loopStart)
+      local middle = writeSoundData(s, loopStart, loopEnd)
+      local after = writeSoundData(s, loopEnd, s:getSampleCount()-1)
+
+      -- instrument.sounds[1].samples[1].sound =
+      --    love.audio.newQueueableSource( s:getSampleRate( ),
+      --                                   s:getBitDepth(),
+      --                                   s:getChannelCount(), 8 )
+      -- instrument.sounds[1].samples[1].sound:queue( begin, begin:getSize() )
+      -- instrument.sounds[1].samples[1].sound:queue( middle, middle:getSize() )
+      -- instrument.sounds[1].samples[1].sound:queue( after, after:getSize() )
+      --instrument.sounds[1].samples[1].sound:play()
+      print('gonna make 3 sounddatas!')
+      instrument.sounds[1].samples[1].loopPointParts = {begin=begin, middle=middle, after=after}
+
+   else
+      instrument.sounds[1].samples[1].soundData =s
+      
+      instrument.sounds[1].samples[1].sound =
+      love.audio.newSource(s, 'static')
+   end
+   
+   
+  
+   --print(instrument.sounds[1].samples[1].sound:getDuration('samples'))
 end
 
 
@@ -94,15 +144,15 @@ if luamidi then
    run = true
 end
 
-function findIndexFirstNonEchoNote()
-   local result = 1
-   for i =1 , #activeSources do
-      if not activeSources[1].isEcho then
-         result = i
-      end
-   end
-   return result
-end
+-- function findIndexFirstNonEchoNote()
+--    local result = 1
+--    for i =1 , #activeSources do
+--       if not activeSources[1].isEcho then
+--          result = i
+--       end
+--    end
+--    return result
+-- end
 
 
 function playNote(semitone, velocity, instrument)
@@ -110,14 +160,13 @@ function playNote(semitone, velocity, instrument)
    --local transpose = 
    local settings = instrument.settings
    local sound = instrument.sounds[1]
-   local transpose = sound.samples[1].transpose
+   local transpose = instrument.settings.transpose
    local adsr = sound.adsr
    
-   love.thread.getChannel( 'audio2main' ):push(
-      {playSemitone=semitone+transpose})
+   love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
 
 
-   local usedSource = nil
+   --local usedSource = nil
    if (settings.glide or settings.monophonic) and #activeSources > 0 then
       local index = 1 --findIndexFirstNonEchoNote()
       assert(#activeSources == 1 or index > 1)
@@ -148,30 +197,38 @@ function playNote(semitone, velocity, instrument)
          end
       end
       
-      usedSource = activeSources[index]
+     -- usedSource = activeSources[index]
 --      print('reusing')
    else
-
-      local s = {sound=sound.samples[1].sound:clone(), key=semitone, noteOnTime=now, noteOffTime=-1  }
-
-      ----- trigger noteoff immeadially shoudl b
+      local s2
+      local usingLoopPoints = false
+      if sound.samples[1].loopPointParts then
+         usingLoopPoints = true
+         s2 = getQueueable(sound.samples[1].soundData)
+         s2:queue(sound.samples[1].loopPointParts.begin)
+      else
+         s2 = sound.samples[1].sound:clone()
+      end
+      local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints }
 
       if settings.useSustain == false then
          s.noteOffTime = now  + adsr.attack + adsr.decay + adsr.release
          s.noteOffVolume = adsr.sustain
+
       end
-      -----
 
       if settings.useVanillaLooping then
          s.sound:setLooping(true)
       end
+
+      
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
       s.sound:play()
       love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s.sound})
       table.insert(activeSources, s)
       
-      usedSource = s
+      --usedSource = s
    end
 
    -- if settings.useEcho then
@@ -211,15 +268,19 @@ function stopNote(semitone)
          --if activeSources[i].isEcho then
          --   activeSources[i].noteOffTime = now + activeSources[i].echoTimeOffset
          --end
+
+         if instrument.settings.useSustain == true then
+            activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
+         end
          
-         activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          activeSources[i].released = true
       end
    end
 end
 
 function getPitch(activeSource, offset)
-   local transpose = instrument.sounds[1].samples[1].transpose
+   local transpose = instrument.settings.transpose
+   -- this will also need to use the root of the sample
    local index = activeSource.key + (offset or 0) + transpose
    --print(activeSource.key, index,pitches[index])
    return pitches[index]
@@ -257,7 +318,7 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho)
 
       elseif attackTime > adsr.attack + adsr.decay then
          volume = adsr.sustain
-         -- print('sustain phase', volume)
+         --print('sustain phase', volume)
          --print('sustain phase', volume)
 
       end
@@ -268,6 +329,8 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho)
       if adsr.release == 0 then
          volume = 0
       end
+      --print('release phase', volume, noteOffVolume)
+
    end
    if attackTime < 0 then
       volume = 0
@@ -284,8 +347,49 @@ while(run ) do
    --print(#activeSources)
   -- print(inspect(instrument.sounds[1]))
    local settings = instrument.settings
-   
+   --print(#activeSources)
    for i =1, #activeSources do
+
+
+      -- lets first do the queuepart
+      if activeSources[i].usingLoopPoints then
+         --print('should i queue or should i go now')
+         local pitch = activeSources[i].sound:getPitch()
+         local tell = (activeSources[i].sound:tell())
+         local dur = (activeSources[i].sound:getDuration())
+
+         local timeLeftInSample = (dur - tell)/pitch
+
+         -- if activeSources[i].noteOffTime ~= -1 then
+         --    if (now - activeSources[i].noteOffTime > 0) then
+         --       --print()
+         --       print('time to fill', now - activeSources[i].noteOffTime)
+         --       print('time left in sample', timeLeftInSample )
+         --       print('end part time', instrument.sounds[1].samples[1].loopPointParts.after:getDuration()/pitch)
+         --     end
+         -- end
+         
+         if (timeLeftInSample < 0.016) then -- only 16 ms left
+            activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.middle)
+         end
+
+         
+         
+        
+            
+         -- end
+
+         -- under some circumstances i dont want to queue another middle
+         -- but instead queue the end?
+
+         
+         --activeSources[i].released = true
+         --math.ceil( 0.18 /  (middle:getDuration()/pitch))
+         --print()
+      end
+      
+
+      
       
       local v = getVolumeASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, instrument.sounds[1].adsr, activeSources[i].isEcho)
       --print(v)

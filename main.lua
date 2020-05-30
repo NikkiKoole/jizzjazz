@@ -193,7 +193,7 @@ function love.draw()
    if renderSoundData then
       renderWave( renderSoundData, 1024-400, 400-30, 300, 100)
    end
-   love.graphics.setColor(0,0,0)
+   love.graphics.setColor(1,1,1)
    if playingSound then
       if playingSound:isPlaying() then
          local t =playingSound:tell()/ playingSound:getDuration()
