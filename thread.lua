@@ -183,11 +183,16 @@ function playNote(semitone, velocity, instrument)
          activeSources[index].noteOffTime=-1
       end
       if settings.useSustain == false then
-         activeSources[index].noteOffTime = now  + adsr.attack + adsr.decay + adsr.release 
+         if settings.usePitchForADSR  then
+            activeSources[index].noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release) /getPitch(activeSources[index])
+         else
+            activeSources[index].noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release) 
+         end
+         
          activeSources[index].noteOffVolume = adsr.sustain
       end
 
-      if settings.glide and not settings.useVanillaLooping then
+      if settings.glide or settings.monophonic and not settings.useVanillaLooping then
          -- this is a one-shot just retrigger the sound
          if not (activeSources[index].sound:isPlaying() ) then
             activeSources[index].noteOffVolume = -1
@@ -212,7 +217,13 @@ function playNote(semitone, velocity, instrument)
       local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints }
 
       if settings.useSustain == false then
-         s.noteOffTime = now  + adsr.attack + adsr.decay + adsr.release
+         if settings.usePitchForADSR then
+            s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)/getPitch(s)
+         else
+            s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)
+
+         end
+         
          s.noteOffVolume = adsr.sustain
 
       end
@@ -272,6 +283,7 @@ function stopNote(semitone)
          if instrument.settings.useSustain == true then
             activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          end
+         print('noteoff value:',activeSources[i].noteOffVolume)
          
          activeSources[i].released = true
       end
@@ -298,25 +310,31 @@ function pitchNote(value)
    end
 end
 
-function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho)
+function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho, pitch)
    local volume = 0
    local attackTime = (now - noteOnTime)
+   --print(pitch)
+   --local pitch = 1.0/pitch
    
+   local attack = adsr.attack / pitch
+   local decay = adsr.decay / pitch
+   local release = adsr.release / pitch
+--   print('release time?', release)
    if noteOffTime == -1 or noteOffTime > now  then 
       
       if attackTime < 0 then
          volume = 0
          --print('before phase', volume)
 
-      elseif attackTime >=0 and attackTime <= adsr.attack then
-         volume = mapInto(attackTime, 0, adsr.attack, 0, adsr.max)
+      elseif attackTime >=0 and attackTime <= attack then
+         volume = mapInto(attackTime, 0, attack, 0, adsr.max)
          --print('attack phase', volume)
-      elseif attackTime <= adsr.attack + adsr.decay then
-         volume = mapInto(attackTime - adsr.attack, 0, adsr.decay, adsr.max, adsr.sustain)
+      elseif attackTime <= attack + decay then
+         volume = mapInto(attackTime - attack, 0, adsr.decay, adsr.max, adsr.sustain)
          --print('decay phase', volume)
          --print('decay phase', volume)
 
-      elseif attackTime > adsr.attack + adsr.decay then
+      elseif attackTime > attack + decay then
          volume = adsr.sustain
          --print('sustain phase', volume)
          --print('sustain phase', volume)
@@ -324,8 +342,8 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho)
       end
       
    else
-      local releaseTime = now - noteOffTime
-      volume = mapInto(releaseTime, adsr.release, 0, 0, noteOffVolume)
+      local releaseTime = (now - noteOffTime)
+      volume = mapInto(releaseTime, release, 0, 0, noteOffVolume)
       if adsr.release == 0 then
          volume = 0
       end
@@ -368,30 +386,22 @@ while(run ) do
          --       print('end part time', instrument.sounds[1].samples[1].loopPointParts.after:getDuration()/pitch)
          --     end
          -- end
-         
+
+
+         -- NOW I ONLY QUEUE MIDDLE PARTS 
          if (timeLeftInSample < 0.016) then -- only 16 ms left
+
+            --print(timeLeftInSample)
             activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.middle)
          end
 
-         
-         
-        
-            
-         -- end
 
-         -- under some circumstances i dont want to queue another middle
-         -- but instead queue the end?
-
-         
-         --activeSources[i].released = true
-         --math.ceil( 0.18 /  (middle:getDuration()/pitch))
-         --print()
       end
       
 
+      local pitch =  getPitch(activeSources[i])
       
-      
-      local v = getVolumeASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, instrument.sounds[1].adsr, activeSources[i].isEcho)
+      local v = getVolumeASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, instrument.sounds[1].adsr, activeSources[i].isEcho, settings.usePitchForADSR and  pitch or 1)
       --print(v)
       --if activeSources[i].echoVolumeMultiplier then
       --   v = v * activeSources[i].echoVolumeMultiplier 
@@ -401,7 +411,7 @@ while(run ) do
       activeSources[i].sound:setVolume(v)
       
       -- glide / portamento
-      local pitch =  getPitch(activeSources[i])
+      
       local newPitch = pitch
 
       if settings.glide then

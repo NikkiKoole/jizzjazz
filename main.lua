@@ -196,7 +196,7 @@ function love.draw()
    love.graphics.setColor(1,1,1)
    if playingSound then
       if playingSound:isPlaying() then
-         local t =playingSound:tell()/ playingSound:getDuration()
+         local t = playingSound:tell()/ playingSound:getDuration()
          local x = 1024-400 + t*(300)
          love.graphics.line(x, 400-30-50, x, 400-30+100-50 )
       end
@@ -250,11 +250,19 @@ function love.draw()
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
+   knob = drawToggle('adsr pitch', 100,100+ 200, instrument.settings.usePitchForADSR)
+   if knob.value ~= nil then
+      instrument.settings.usePitchForADSR = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+   
    
    love.graphics.setColor(0,0,0)
    renderLabel("vanilla loop", 100+50,100)
    renderLabel("glide", 100+50,100+40)
    renderLabel("sustain", 100+50,100+80)
    renderLabel("monophonic", 100+50,100+120)
-    renderLabel("vibrato", 100+50,100+160)
+   renderLabel("vibrato", 100+50,100+160)
+   renderLabel("adsr pitch", 100+50,100+200)
 end
