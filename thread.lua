@@ -17,7 +17,6 @@ channel 	= {};
 channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
-
 function writeSoundData(toClone, startPos, endPos)
    local rate = toClone:getSampleRate( )
    local bitDepth = toClone:getBitDepth()
@@ -46,33 +45,20 @@ for i =1 , #instrument.sounds do
    local loopEnd = instrument.sounds[1].samples[1].loopEnd 
 
    if (loopStart and loopEnd) then
+      instrument.sounds[1].samples[1].fullSoundData = s
       instrument.sounds[1].samples[1].soundData = s
       
       local begin = writeSoundData(s, 0, loopStart)
       local middle = writeSoundData(s, loopStart, loopEnd)
       local after = writeSoundData(s, loopEnd, s:getSampleCount()-1)
 
-      -- instrument.sounds[1].samples[1].sound =
-      --    love.audio.newQueueableSource( s:getSampleRate( ),
-      --                                   s:getBitDepth(),
-      --                                   s:getChannelCount(), 8 )
-      -- instrument.sounds[1].samples[1].sound:queue( begin, begin:getSize() )
-      -- instrument.sounds[1].samples[1].sound:queue( middle, middle:getSize() )
-      -- instrument.sounds[1].samples[1].sound:queue( after, after:getSize() )
-      --instrument.sounds[1].samples[1].sound:play()
-      print('gonna make 3 sounddatas!')
       instrument.sounds[1].samples[1].loopPointParts = {begin=begin, middle=middle, after=after}
 
    else
       instrument.sounds[1].samples[1].soundData =s
-      
       instrument.sounds[1].samples[1].sound =
       love.audio.newSource(s, 'static')
    end
-   
-   
-  
-   --print(instrument.sounds[1].samples[1].sound:getDuration('samples'))
 end
 
 
@@ -80,30 +66,8 @@ end
 love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].samples[1].soundData})
 love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
 
---oscUrl = 'assets/oscillators/AKWF_fmsynth/AKWF_fmsynth_0101.wav'
---oscUrl = 'assets/samples/rhodes/A_055__G3_3.wav'
---oscUrl = 'assets/samples/Cymbal.wav'
---oscUrl = 'assets/samples/Bongo High.wav'
---sample = {
---   path='assets/samples/rhodes/A_055__G3_3.wav',
-   
---}
---soundData = love.sound.newSoundData( sample.path )
---sound = love.audio.newSource(soundData, 'static')
---sound:play()
---love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
-
 activeSources = {}
 pitches = {}
-
-
-
-
-
---channel.audio2main:push( {eq=eq} );
---channel.audio2main:push( {settings=settings} )
---channel.audio2main:push( {adsr=adsr} );
-
 
 function mapInto(x, in_min, in_max, out_min, out_max)
    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -133,7 +97,6 @@ for i = 0, 144+24 do
    elseif o == 14 then  pitch =(256 + 256*n)
    end
 
-
    pitches[i] = pitch
 end
 
@@ -144,20 +107,7 @@ if luamidi then
    run = true
 end
 
--- function findIndexFirstNonEchoNote()
---    local result = 1
---    for i =1 , #activeSources do
---       if not activeSources[1].isEcho then
---          result = i
---       end
---    end
---    return result
--- end
-
-
 function playNote(semitone, velocity, instrument)
-
-   --local transpose = 
    local settings = instrument.settings
    local sound = instrument.sounds[1]
    local transpose = instrument.settings.transpose
@@ -165,8 +115,6 @@ function playNote(semitone, velocity, instrument)
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
 
-
-   --local usedSource = nil
    if (settings.glide or settings.monophonic) and #activeSources > 0 then
       local index = 1 --findIndexFirstNonEchoNote()
       assert(#activeSources == 1 or index > 1)
@@ -197,13 +145,11 @@ function playNote(semitone, velocity, instrument)
          if not (activeSources[index].sound:isPlaying() ) then
             activeSources[index].noteOffVolume = -1
             activeSources[index].sound:play()
-            love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=activeSources[index].sound})
+            love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=activeSources[index]})
             
          end
       end
-      
-     -- usedSource = activeSources[index]
---      print('reusing')
+
    else
       local s2
       local usingLoopPoints = false
@@ -214,58 +160,30 @@ function playNote(semitone, velocity, instrument)
       else
          s2 = sound.samples[1].sound:clone()
       end
-      local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints }
+      local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints, loopParts = sound.samples[1].loopPointParts, fullSound=sound.samples[1].fullSoundData }
 
       if settings.useSustain == false then
          if settings.usePitchForADSR then
             s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)/getPitch(s)
          else
             s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)
-
          end
          
          s.noteOffVolume = adsr.sustain
-
       end
 
       if settings.useVanillaLooping then
          s.sound:setLooping(true)
       end
-
       
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
       s.sound:play()
-      love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s.sound})
+      love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s})
       table.insert(activeSources, s)
-      
-      --usedSource = s
    end
 
-   -- if settings.useEcho then
-   --    --      local echoTicks = { 0.3, 0.45, 0.55, 0.60, 0.62}
-   --    for i = 1, 5 do
-   --       local echoTimeOffset = 0.5*i
-   --       local echoSound = {sound=usedSource.sound:clone(),
-   --                          key=usedSource.key,
-   --                          released = true,
-   --                          isEcho=true,
-   --                          echoVolumeMultiplier = 1.0 - (i/10),
-   --                          echoTimeOffset = echoTimeOffset,
-   --                          noteOnTime=usedSource.noteOnTime + echoTimeOffset,
-   --                          noteOffVolume = usedSource.noteOffVolume or 0,
-   --                          noteOffTime=usedSource.noteOffTime + echoTimeOffset}
-   --       if settings.useSustain then
-   --          echoSound.noteOffTime = -1
-   --       end
-   --       echoSound.sound:setLooping(true)
-   --       echoSound.sound:setPitch(getPitch(echoSound))
-   --       echoSound.sound:setVolume(0)
-   --       echoSound.sound:play()
-   --       table.insert(activeSources, echoSound)
-   --    end
-   -- end
-   
+  -- activeSources[index].sound:play()
 end
 
 function stopNote(semitone)
@@ -274,17 +192,9 @@ function stopNote(semitone)
          
          if instrument.settings.useSustain == true then
             activeSources[i].noteOffTime = now
-         end
-         
-         --if activeSources[i].isEcho then
-         --   activeSources[i].noteOffTime = now + activeSources[i].echoTimeOffset
-         --end
-
-         if instrument.settings.useSustain == true then
             activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          end
-         print('noteoff value:',activeSources[i].noteOffVolume)
-         
+
          activeSources[i].released = true
       end
    end
@@ -292,10 +202,13 @@ end
 
 function getPitch(activeSource, offset)
    local transpose = instrument.settings.transpose
-   -- this will also need to use the root of the sample
-   local index = activeSource.key + (offset or 0) + transpose
-   --print(activeSource.key, index,pitches[index])
-   return pitches[index]
+   local rootTranspose =  0
+   if instrument.sounds[1].samples[1].root then
+      rootTranspose = 72 - instrument.sounds[1].samples[1].root
+   end
+   local index = activeSource.key + (offset or 0) + transpose + rootTranspose
+   
+   return pitches[index] or 1
 end
 
 function pitchNote(value)
@@ -313,32 +226,25 @@ end
 function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho, pitch)
    local volume = 0
    local attackTime = (now - noteOnTime)
-   --print(pitch)
-   --local pitch = 1.0/pitch
    
    local attack = adsr.attack / pitch
    local decay = adsr.decay / pitch
    local release = adsr.release / pitch
---   print('release time?', release)
+
    if noteOffTime == -1 or noteOffTime > now  then 
       
       if attackTime < 0 then
          volume = 0
          --print('before phase', volume)
-
       elseif attackTime >=0 and attackTime <= attack then
          volume = mapInto(attackTime, 0, attack, 0, adsr.max)
          --print('attack phase', volume)
       elseif attackTime <= attack + decay then
          volume = mapInto(attackTime - attack, 0, adsr.decay, adsr.max, adsr.sustain)
          --print('decay phase', volume)
-         --print('decay phase', volume)
-
       elseif attackTime > attack + decay then
          volume = adsr.sustain
          --print('sustain phase', volume)
-         --print('sustain phase', volume)
-
       end
       
    else
@@ -355,65 +261,51 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
    end
    
    if volume < 0 then volume = 0 end
-   return volume  
+
+   return volume
 end
 
-
-
-
 while(run ) do
-   --print(#activeSources)
-  -- print(inspect(instrument.sounds[1]))
+   if #activeSources == 0 then
+--      print('no one here')
+   end
+   
    local settings = instrument.settings
-   --print(#activeSources)
+
    for i =1, #activeSources do
-
-
       -- lets first do the queuepart
       if activeSources[i].usingLoopPoints then
-         --print('should i queue or should i go now')
          local pitch = activeSources[i].sound:getPitch()
          local tell = (activeSources[i].sound:tell())
          local dur = (activeSources[i].sound:getDuration())
 
          local timeLeftInSample = (dur - tell)/pitch
-
-         -- if activeSources[i].noteOffTime ~= -1 then
-         --    if (now - activeSources[i].noteOffTime > 0) then
-         --       --print()
-         --       print('time to fill', now - activeSources[i].noteOffTime)
-         --       print('time left in sample', timeLeftInSample )
-         --       print('end part time', instrument.sounds[1].samples[1].loopPointParts.after:getDuration()/pitch)
-         --     end
-         -- end
-
-
-         -- NOW I ONLY QUEUE MIDDLE PARTS 
-         if (timeLeftInSample < 0.016) then -- only 16 ms left
-
-            --print(timeLeftInSample)
-            activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.middle)
+         local noteHasBeenReleasedInPast = activeSources[i].noteOffTime ~= -1 and now - activeSources[i].noteOffTime > 0
+         
+         if (noteHasBeenReleasedInPast) then
+            local releaseDuration =  instrument.sounds[1].adsr.release
+            local afterLength =  instrument.sounds[1].samples[1].loopPointParts.after:getDuration() 
+            if timeLeftInSample + afterLength >= releaseDuration then
+               activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.after)
+            end
          end
 
-
+         if (timeLeftInSample < 0.016) then -- only 16 ms left
+            activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.middle)
+         end
       end
       
 
       local pitch =  getPitch(activeSources[i])
       
       local v = getVolumeASDR(now, activeSources[i].noteOnTime, activeSources[i].noteOffTime, activeSources[i].noteOffVolume, instrument.sounds[1].adsr, activeSources[i].isEcho, settings.usePitchForADSR and  pitch or 1)
-      --print(v)
-      --if activeSources[i].echoVolumeMultiplier then
-      --   v = v * activeSources[i].echoVolumeMultiplier 
-      --end
-
 
       activeSources[i].sound:setVolume(v)
       
       -- glide / portamento
       
       local newPitch = pitch
-
+     
       if settings.glide then
          if activeSources[i].glideFromPitch then
             local glideTime =  (now - activeSources[i].glideStart)
@@ -426,10 +318,12 @@ while(run ) do
             end
          end
       end
-      
+
+      -- 
       if settings.vibrato then
          local vibratoSmallPitchDiff =  (getPitch(activeSources[i]) - getPitch(activeSources[i], 1) ) 
          local vibratoPitchOffset = math.sin(time * settings.vibratoSpeed) *  vibratoSmallPitchDiff/(settings.vibratoStrength) -- [-1, 1]
+         --print(vibratoPitchOffset, newPitch)
          if activeSources[i].glideFromPitch then
             newPitch = newPitch + (vibratoPitchOffset)/2
          else
@@ -449,23 +343,22 @@ while(run ) do
       
    end
 
+   for i = #activeSources, 1, -1 do
+      if activeSources[i].remove then
+         activeSources[i].sound:stop()
+            table.remove(activeSources, i)
+         end
+   end
    
    for i = #activeSources, 1, -1 do
       if activeSources[i].released == true then
          local remove = false
          if activeSources[i].sound:getVolume() < 0.0001 and now > activeSources[i].noteOnTime then
-            activeSources[i].sound:stop()
-            remove = true
+            activeSources[i].sound:setVolume(0)
+            activeSources[i].remove = true
          end
-         
-         if remove then
-            table.remove(activeSources, i)
-         end
-
       end
    end
-
-   
    
    if luamidi and luamidi.getinportcount() > 0 then
       --print('yo')
@@ -526,7 +419,7 @@ while(run ) do
       end
       if v.instrument then
          instrument = v.instrument
-         print('hello instrument')
+         print('hello instrument', inspect(instrument))
       end
       if v.adsr then
          instrument.sounds[1].adsr = v.adsr
@@ -535,7 +428,9 @@ while(run ) do
       if v.osc  then
          instrument.settings.useVanillaLooping = true
          oscUrl = v.osc
+         print(oscUrl)
          soundData = love.sound.newSoundData( v.osc )
+         
          --    -- sone.filter(soundData, {
          --    --                 type = "highpass",
          --    --                 frequency = 5000,
@@ -547,11 +442,15 @@ while(run ) do
          --    --print(sound)
          sound = love.audio.newSource(soundData, 'static')
          love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
+         instrument.sounds[1].samples[1].soundData = soundData
+         instrument.sounds[1].samples[1].sound = sound
+
       end
       
       if v.eq then
-        -- print('what?')
-         soundData = love.sound.newSoundData(instrument.sounds[1].samples[1].path)
+         -- print('what?')
+         soundData =  instrument.sounds[1].samples[1].soundData
+         --soundData = love.sound.newSoundData(instrument.sounds[1].samples[1].path)
          -- sone.filter(soundData, {
          --                  type = "highshelf",
          --                  frequency =  v.eq.lowpass.frequency,

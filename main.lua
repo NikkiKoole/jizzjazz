@@ -88,7 +88,7 @@ function love.mousereleased(x,y)
    dragging = false
    love.mouse.setCursor(cursors.arrow)
 
-   --browser = handleBrowserClick(browser, x,y)
+   browser = handleBrowserClick(browser, x,y)
    lastDraggedElement = nil
 end
 
@@ -163,6 +163,11 @@ function getStringWidth(str)
    return font:getWidth( str )
 end
 
+function round(num, numDecimalPlaces)
+  local mult = 10^(numDecimalPlaces or 0)
+  return math.floor(num * mult + 0.5) / mult
+end
+
 
 function love.draw()
    handleMouseClickStart()
@@ -178,7 +183,7 @@ function love.draw()
 
    --renderMusicBar(musicBar)
    
-   --renderBrowser(browser)
+   renderBrowser(browser)
 
    if lastHitNote then
       love.graphics.print(lastHitNote, 12, 120)
@@ -195,8 +200,38 @@ function love.draw()
    end
    love.graphics.setColor(1,1,1)
    if playingSound then
-      if playingSound:isPlaying() then
-         local t = playingSound:tell()/ playingSound:getDuration()
+      if playingSound.sound:isPlaying() then
+                  local t = 0
+
+         if (playingSound.loopParts) then
+         local dur = round(playingSound.sound:getDuration(),2)
+         local beginDur =  round(playingSound.loopParts.begin:getDuration(),2)
+         local middleDur = round(playingSound.loopParts.middle:getDuration(),2)
+         local afterDur = round(playingSound.loopParts.after:getDuration(),2)
+         local tell = playingSound.sound:tell()
+         --print(dur, beginDur, middleDur, afterDur)
+         if beginDur == dur then
+            --print('begin')
+            t = tell/ playingSound.fullSound:getDuration()
+         elseif middleDur == dur then
+            --print('middle')
+            t = (tell + beginDur)/ playingSound.fullSound:getDuration()
+         elseif afterDur == dur then
+            --print('after')
+            t = (tell + beginDur + middleDur)/ playingSound.fullSound:getDuration()
+
+         else
+            --local d = (dur - beginDur) % middleDur
+            
+            --print(d, dur, beginDur, middleDur, afterDur)
+            --print('durp', dur)
+            t = 0
+         end
+         
+         else
+         
+         t = playingSound.sound:tell()/ playingSound.fullSound:getDuration()
+         end
          local x = 1024-400 + t*(300)
          love.graphics.line(x, 400-30-50, x, 400-30+100-50 )
       end
@@ -228,6 +263,13 @@ function love.draw()
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
+     knob = draw_knob('glideDuration', 250,100+ 50, instrument.settings.glideDuration, 0, 2)
+   if knob.value ~= nil then
+      instrument.settings.glideDuration = knob.value
+      --print(k.value)
+
+      channel.main2audio:push( {instrument=instrument} );
+   end
 
    knob = drawToggle('useSustain', 100,100+ 80, instrument.settings.useSustain)
    if knob.value ~= nil then
@@ -244,7 +286,7 @@ function love.draw()
       channel.main2audio:push( {instrument=instrument} );
    end
 
-     knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
+   knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
    if knob.value ~= nil then
       instrument.settings.vibrato = knob.value
       --print(k.value)
@@ -256,7 +298,24 @@ function love.draw()
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
-   
+
+   knob = draw_knob('vibratoSpeed', 250,100+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
+   if knob.value ~= nil then
+      instrument.settings.vibratoSpeed = knob.value
+      --print(k.value)
+      print(instrument.settings.vibratoSpeed)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+   knob = draw_knob('vibratoStrength', 300,100+ 170, instrument.settings.vibratoStrength, 0.1, 5)
+   if knob.value ~= nil then
+      instrument.settings.vibratoStrength = knob.value
+      --print(k.value)
+      print(instrument.settings.vibratoStrength)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+  
+
+
    
    love.graphics.setColor(0,0,0)
    renderLabel("vanilla loop", 100+50,100)

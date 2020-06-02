@@ -37,18 +37,19 @@ function getDefaultInstrument()
       sounds = {
          {
             samples = {{
-                  path= "assets/samples/rhodes/A_055__G3_3.wav",
-                  --loopStart=112434,
-                  --loopEnd=117151,
+                  -- path= "assets/samples/rhodes/A_055__G3_3.wav",
+                  -- loopStart=112434,
+                  -- loopEnd=117151,
 
-                 -- path= "assets/samples/begin_nogeenkeer_einde.wav",
-                  --loopStart=27522,
-                  --loopEnd=68295,
+                 path= "assets/samples/begin_nogeenkeer_einde.wav",
+                  loopStart=27522,
+                  loopEnd=68295,
 
-                 -- path="assets/samples/SIDSQUAW.wav",
+                 --path="assets/samples/SIDSQUAW.wav",
                   soundData=nil,
                   sound=nil,
-                  --transpose = 0, -- this should become the root , that belongs to a sample
+                  root=55,
+                
             }},
             adsr = {
                attack = 0.01,
