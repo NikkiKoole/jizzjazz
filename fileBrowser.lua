@@ -8,22 +8,6 @@ function createFilePath(root, subdirs)
    end
    return path
 end
-
-function handleFileBrowserWheelMoved(browser, a,b)
-   --print(inspect(browser))
-   --print(a,b)
-   browser.scrollTop = browser.scrollTop + b
-   
-   -- say we want 20 elements max
-   --local total = #browser.directories + #browser.files
-   if browser.scrollTop > #browser.all - 20 then
-      browser.scrollTop = #browser.all - 20
-   end
-   if browser.scrollTop < 0 then browser.scrollTop = 0 end
-   
-   --print(#browser.directories, #browser.files)
-end
-
 function TableConcat(t1,t2)
     for i=1,#t2 do
         t1[#t1+1] = t2[i]
@@ -31,13 +15,21 @@ function TableConcat(t1,t2)
     return t1
 end
 
+
+function handleFileBrowserWheelMoved(browser, a,b)
+   browser.scrollTop = browser.scrollTop + b
+   if browser.scrollTop > #browser.all - 20 then
+      browser.scrollTop = #browser.all - 20
+   end
+   if browser.scrollTop < 0 then browser.scrollTop = 0 end
+end
+
+
 function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
    local path = createFilePath(rootPath, subdirs)
    local all = love.filesystem.getDirectoryItems(path);
    local files={}
    local directories={}
-
-  -- local result = {root=rootPath, subdir=subdir}
 
    if #subdirs>0 then
       table.insert(directories, {path='..', type='directory'})
@@ -47,7 +39,6 @@ function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
       local t = love.filesystem.getInfo(path..'/'..all[i]).type
       
       if t == 'file' then
-         
          if allowedExtensions then
             for j = 1, #allowedExtensions do
                if stringEndsWith(all[i], allowedExtensions[j]) then
@@ -58,6 +49,7 @@ function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
             table.insert(files, {path=all[i], type='file'})
          end
       end
+      
       if t == 'directory' then
          table.insert(directories, {path=all[i], type='directory'})
       end
@@ -74,21 +66,23 @@ end
 
 
 
-function renderBrowser(browser)
+function renderBrowser(browser, x, y)
    local runningX, runningY
+   browser.x = x
+   browser.y = y
    --runningX = 20
-   runningY = 200
-   maxY = 700
+   runningY = browser.y
+
    local buttonWidth = 200
    local buttonHeight = 20
-   for i=1+browser.scrollTop, math.min(#browser.all, 1+browser.scrollTop+20)  do
+   for i=1+browser.scrollTop, math.min(#browser.all, browser.scrollTop+20)  do
       local thing =  browser.all[i]
 
       if thing.type == 'directory' then
          love.graphics.setColor(red[1],red[2],red[3], 0.2)
-         love.graphics.rectangle('fill', 20, runningY, buttonWidth, buttonHeight)
+         love.graphics.rectangle('fill', x, runningY, buttonWidth, buttonHeight)
          love.graphics.setColor(1,1,1)
-         love.graphics.print(thing.path, 20, runningY )
+         love.graphics.print(thing.path, x, runningY )
       else
          local filename = thing.path
          if browser.allowedExtensions then
@@ -102,17 +96,16 @@ function renderBrowser(browser)
             love.graphics.setColor(0,0,0)
          end
          
-         love.graphics.print(filename, 20, runningY )
+         love.graphics.print(filename, x, runningY )
       end
       runningY = runningY + buttonHeight
    end
-
 end
 
 
-function handleBrowserClick(browser, x,y)
-   if x> 20 and y > 200 then
-      local index = (math.floor((x-20)/200) * 26) + math.floor((y-200)/20) + 1
+function handleBrowserClick(browser,x,y)
+   if x> browser.x and x < browser.x+200 and y > browser.y then
+      local index = math.floor((y-browser.y)/20) + 1
       index = index + browser.scrollTop
       local thing = browser.all[index]
       if thing.type == 'directory' then

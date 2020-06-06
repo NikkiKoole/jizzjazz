@@ -6,15 +6,15 @@ function drawRectangle(x,y,w,h, alpha, fill, out)
    love.graphics.rectangle("line", x , y, w, h)
 end
 
-function renderLabel(str, x,y)
-   love.graphics.setColor(0,0,0)
+function renderLabel(str, x,y, alpha)
+   love.graphics.setColor(0,0,0, alpha or 1)
    love.graphics.rectangle('fill', x-5, y-2, getStringWidth(str)+10, 20+4 )
-   love.graphics.setColor(1,1,1)
+   love.graphics.setColor(1,1,1, alpha or 1)
    love.graphics.print(str, x, y)
 end
 
-function renderInstrumentSettings(instrument)
-local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanillaLooping)
+function renderInstrumentSettings(instrument, x, y)
+   local knob = drawToggle('vanilla looping', x,y, instrument.settings.useVanillaLooping)
 
    if knob.value ~= nil then
       instrument.settings.useVanillaLooping = knob.value
@@ -22,13 +22,13 @@ local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanil
       channel.main2audio:push( {instrument=instrument} );
    end
 
-   knob = drawToggle('glide', 100,100+ 40, instrument.settings.glide)
+   knob = drawToggle('glide', x,y+ 40, instrument.settings.glide)
    if knob.value ~= nil then
       instrument.settings.glide = knob.value
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
-     knob = draw_knob('glideDuration', 250,100+ 50, instrument.settings.glideDuration, 0, 2)
+   knob = draw_knob('glideDuration', x+150,y+ 50, instrument.settings.glideDuration, 0, 2)
    if knob.value ~= nil then
       instrument.settings.glideDuration = knob.value
       --print(k.value)
@@ -36,7 +36,7 @@ local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanil
       channel.main2audio:push( {instrument=instrument} );
    end
 
-   knob = drawToggle('useSustain', 100,100+ 80, instrument.settings.useSustain)
+   knob = drawToggle('useSustain', x,y+ 80, instrument.settings.useSustain)
    if knob.value ~= nil then
       instrument.settings.useSustain = knob.value
       --print(k.value)
@@ -44,51 +44,51 @@ local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanil
    end
 
 
-    knob = drawToggle('mono', 100,100+ 120, instrument.settings.monophonic)
+   knob = drawToggle('mono', x,y+ 120, instrument.settings.monophonic)
    if knob.value ~= nil then
       instrument.settings.monophonic = knob.value
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
-   knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
+   knob = drawToggle('vibrato', x,y+ 160, instrument.settings.vibrato)
    if knob.value ~= nil then
       instrument.settings.vibrato = knob.value
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
-   knob = drawToggle('adsr pitch', 100,100+ 200, instrument.settings.usePitchForADSR)
+   knob = drawToggle('adsr pitch', x,y+ 200, instrument.settings.usePitchForADSR)
    if knob.value ~= nil then
       instrument.settings.usePitchForADSR = knob.value
       --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
-   knob = draw_knob('vibratoSpeed', 250,100+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
+   knob = draw_knob('vibratoSpeed', x+150,y+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
    if knob.value ~= nil then
       instrument.settings.vibratoSpeed = knob.value
       --print(k.value)
       print(instrument.settings.vibratoSpeed)
       channel.main2audio:push( {instrument=instrument} );
    end
-   knob = draw_knob('vibratoStrength', 300,100+ 170, instrument.settings.vibratoStrength, 0.1, 5)
+   knob = draw_knob('vibratoStrength', x+200,y+ 170, instrument.settings.vibratoStrength, 0.1, 5)
    if knob.value ~= nil then
       instrument.settings.vibratoStrength = knob.value
       --print(k.value)
---      print(instrument.settings.vibratoStrength)
+      --      print(instrument.settings.vibratoStrength)
       channel.main2audio:push( {instrument=instrument} );
    end
-  
+   
 
 
    
    love.graphics.setColor(0,0,0)
-   renderLabel("vanilla loop", 100+50,100)
-   renderLabel("glide", 100+50,100+40)
-   renderLabel("sustain", 100+50,100+80)
-   renderLabel("monophonic", 100+50,100+120)
-   renderLabel("vibrato", 100+50,100+160)
-   renderLabel("adsr pitch", 100+50,100+200)
+   renderLabel("vanilla loop", x+50,y)
+   renderLabel("glide", x+50,y+40)
+   renderLabel("sustain", x+50,y+80)
+   renderLabel("monophonic", x+50,y+120)
+   renderLabel("vibrato", x+50,y+160)
+   renderLabel("adsr pitch", x+50,y+200)
 
 end
 
@@ -109,6 +109,13 @@ function renderEQ(eq, x, y)
         renderLabel(labels[i], x, runningY-10)
         
         local e = eq[labels[i]]
+         love.graphics.setColor(red[1],red[2],red[3])
+        knob = drawToggle('enabled_'..labels[i], x- 30,runningY-10, e.enabled)
+        if knob.value ~= nil then
+           eq[labels[i]].enabled = knob.value
+           channel.main2audio:push ( {eq = eq} );
+        end
+        
         if e then
            if e.frequency then
            local max = 48000/2
@@ -121,7 +128,7 @@ function renderEQ(eq, x, y)
               max = 48000/64
            end
            if labels[i] == 'bandpass' then
-              max = 48000/64
+              max = 48000/16
            end
             if labels[i] == 'notch' then
               max = 48000/64
@@ -159,23 +166,9 @@ function renderEQ(eq, x, y)
      
      runningY = runningY + 50
 
-     -- renderLabel('fade out', x, runningY-10)
-     -- knob = h_slider('fade out', x + 100, runningY-10, 200, eq.fadeout or 0, 0.0, activeSoundData:getDuration()-0.001 )
-     -- if knob.value ~= nil then
-     --    eq.fadeout = knob.value
-     --    channel.main2audio:push ( {eq = eq} );
-     -- end
-     -- runningY = runningY + 50
-     -- renderLabel('fade in', x, runningY-10)
-     -- knob = h_slider('fade in', x + 100, runningY-10, 200, eq.fadein or 0 , 0.0, activeSoundData:getDuration()-0.001 )
-     -- if knob.value ~= nil then
-     --    eq.fadein = knob.value
-     --    channel.main2audio:push ( {eq = eq} );
-     -- end
+    
      end
-     love.graphics.setLineWidth(1)
-
-  end
+end
 
 function renderADSREnvelope(adsr, x, y, width, height)
      love.graphics.setLineWidth(3)

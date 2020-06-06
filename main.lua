@@ -32,36 +32,36 @@ end
 
 
 function love.update(dt)
-    local error = thread:getError()
-    assert( not error, error )
-    local v = channel.audio2main:pop ();
-    if v then
-       if v == 'quit' then
-          love.event.quit()
-       end
-       if v.playSemitone then
-          local names = {'C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'}
-          local number = math.floor(v.playSemitone / 12)
-          lastHitNote =  names[(v.playSemitone % 12)+1]..number
-       end
-       --if v.soundData then
-       --   activeSoundData = v.soundData
-       --end
-       if v.instrument then
-          instrument = v.instrument
-       end
-       if v.eq then
-          instrument.sounds[1].eq = v.eq
-       end
-       if v.soundData then
-          renderSoundData = v.soundData
-       end
-       if v.soundStartPlaying then
-          playingSound = v.soundStartPlaying
-       end
-       
-       
-    end
+   local error = thread:getError()
+   assert( not error, error )
+   local v = channel.audio2main:pop ();
+   if v then
+      if v == 'quit' then
+         love.event.quit()
+      end
+      if v.playSemitone then
+         local names = {'C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'}
+         local number = math.floor(v.playSemitone / 12)
+         lastHitNote =  names[(v.playSemitone % 12)+1]..number
+      end
+      --if v.soundData then
+      --   activeSoundData = v.soundData
+      --end
+      if v.instrument then
+         instrument = v.instrument
+      end
+      if v.eq then
+         instrument.sounds[1].eq = v.eq
+      end
+      if v.soundData then
+         renderSoundData = v.soundData
+      end
+      if v.soundStartPlaying then
+         playingSound = v.soundStartPlaying
+      end
+      
+      
+   end
 end
 
 
@@ -97,13 +97,13 @@ end
 function love.mousemoved(x,y,dx,dy)
    --print(inspect(musicBar.dict))
    
-  handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
+   handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
 end
 
 
 function love.load()
    
-  
+   
    
    --love.window.setMode(1024, 768)
    cursors = {hand=love.mouse.getSystemCursor("hand"),
@@ -117,7 +117,7 @@ function love.load()
    
    musicBar = createMusicBar()
 
-  
+   
    browser = fileBrowser("assets", {"oscillators"}, {"wav", "WAV"})
    
    lastClickedFile = nil
@@ -165,8 +165,8 @@ function getStringWidth(str)
 end
 
 function round(num, numDecimalPlaces)
-  local mult = 10^(numDecimalPlaces or 0)
-  return math.floor(num * mult + 0.5) / mult
+   local mult = 10^(numDecimalPlaces or 0)
+   return math.floor(num * mult + 0.5) / mult
 end
 
 
@@ -182,27 +182,85 @@ function love.draw()
    love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
 
 
-   --renderMusicBar(musicBar)
-   
-   renderBrowser(browser)
+   renderMusicBar(musicBar)
 
    if lastHitNote then
-      love.graphics.print(lastHitNote, 12, 120)
+      love.graphics.print(lastHitNote, 50, 10)
    end
+   
+   
+   renderBrowser(browser, 40, 330)
+
+   if renderSoundData then
+      renderWave( renderSoundData, 40+200+40, 330+50, 300, 100)
+   end
+   
+   if playingSound then
+      renderPlayingSoundBar( 40+200+40, 330+50, 300, 100)
+   end
+   
    
    if instrument then
-      renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 50, 250, 100)
+      renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 330, 250, 100)
+   end
+
+   love.graphics.setColor(red[1],red[2],red[3])
+   love.graphics.setLineWidth(3)
+   if (instrument) then
+      renderEQ(instrument.sounds[1].eq, 40+200+40, 768- 250)
+   end
+
+   if (instrument) then
+      renderLabel('fade out', 300, 750)
+      knob = h_slider('fade out', 300 + 100, 750, 200, instrument.sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
+      if knob.value ~= nil then
+         instrument.sounds[1].eq.fadeout = knob.value
+         channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
+      end
+
+      renderLabel('fade in', 300, 800)
+      knob = h_slider('fade in', 300 + 100, 800, 200, instrument.sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
+      if knob.value ~= nil then
+         instrument.sounds[1].eq.fadein = knob.value
+         channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
+      end
+   end
+     -- runningY = runningY + 50
+     -- renderLabel('fade in', x, runningY-10)
+     -- knob = h_slider('fade in', x + 100, runningY-10, 200, eq.fadein or 0 , 0.0, activeSoundData:getDuration()-0.001 )
+     -- if knob.value ~= nil then
+     --    eq.fadein = knob.value
+     --    channel.main2audio:push ( {eq = eq} );
+     -- end
+     -- end
+     -- love.graphics.setLineWidth(1)
+   
+   love.graphics.setColor(red[1],red[2],red[3])
+   love.graphics.setLineWidth(3)
+
+   if (instrument) then
+      renderInstrumentSettings(instrument, 750, 530)
+   end
+
+
+   -- now trya n make the simple sequencer
+
+   for i = 1, 16 do
+      local str = i 
+      local strW = getStringWidth(str)
+      love.graphics.print(str, i*32  + (32-strW)/2, 80)
+      love.graphics.rectangle('line', i*32, 100, 32,32)
    end
    
-   if renderSoundData then
-      renderWave( renderSoundData, 1024-400, 400-30, 300, 100)
-   end
-   love.graphics.setColor(1,1,1)
-   if playingSound then
-      if playingSound.sound:isPlaying() then
-         local t = 0
+end
 
-         if (playingSound.loopParts) then
+
+function renderPlayingSoundBar(x,y, width, height)
+   love.graphics.setColor(1,1,1)
+   if playingSound.sound:isPlaying() then
+      local t = 0
+
+      if (playingSound.loopParts) then
          local dur = round(playingSound.sound:getDuration(),3)
          local beginDur =  round(playingSound.loopParts.begin:getDuration(),3)
          local middleDur = round(playingSound.loopParts.middle:getDuration(),3)
@@ -215,38 +273,25 @@ function love.draw()
             t = (tell + beginDur)/ playingSound.fullSound:getDuration()
          elseif afterDur == dur then
             t = (tell + beginDur + middleDur)/ playingSound.fullSound:getDuration()
-
          else
             -- here a few things could be happening
-            -- multiple middel parts are queued
-            -- middle and after is queed
+            -- multiple middle parts are queued
+            -- middle and after is queued
             t = 0
          end
          
-         else
+      else
          if playingSound.fullSound then  
             t = playingSound.sound:tell()/ playingSound.fullSound:getDuration()
          else
-             t = playingSound.sound:tell()/ playingSound.sound:getDuration()
+            t = playingSound.sound:tell()/ playingSound.sound:getDuration()
          end
-            
          
-         end
-         local x = 1024-400 + t*(300)
-         love.graphics.line(x, 400-30-50, x, 400-30+100-50 )
+         
       end
+      local x2 = x + t*(width)
+
+      love.graphics.line(x2, y-(height/2), x2, y+(height/2) )
    end
 
-   if (instrument) then
-      renderEQ(instrument.sounds[1].eq, 1024 - 400, 768- 250)
-   end
-   
-   love.graphics.setColor(red[1],red[2],red[3])
-   love.graphics.setLineWidth(3)
-
-   
-
-   if (instrument) then
-      renderInstrumentSettings(instrument)
-   end
 end

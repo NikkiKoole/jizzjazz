@@ -174,7 +174,9 @@ function playNote(semitone, velocity, instrument)
       end
 
       if settings.useVanillaLooping then
-         s.sound:setLooping(true)
+         if not s.loopParts then
+            s.sound:setLooping(true)
+         end
       end
       
       s.sound:setPitch(getPitch(s))
@@ -351,7 +353,7 @@ function handleThreadInput()
          sound = love.audio.newSource(soundData, 'static')
          instrument.sounds[1].sample.loopPointParts = undefined
          instrument.sounds[1].sample.path = v.osc
-         instrument.sounds[1].sample.fullSoundData = s
+         instrument.sounds[1].sample.fullSoundData = soundData
          instrument.sounds[1].sample.soundData = soundData
          instrument.sounds[1].sample.sound = sound
          love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
@@ -362,8 +364,8 @@ function handleThreadInput()
       
       if v.eq then
          -- print('what?')
-         soundData =  instrument.sounds[1].sample.soundData
-         --soundData = love.sound.newSoundData(instrument.sounds[1].sample.path)
+         --soundData =  instrument.sounds[1].sample.fullSoundData
+         soundData = love.sound.newSoundData(instrument.sounds[1].sample.path)
          -- sone.filter(soundData, {
          --                  type = "highshelf",
          --                  frequency =  v.eq.lowpass.frequency,
@@ -377,7 +379,7 @@ function handleThreadInput()
 
          
          
-         
+         if v.eq.lowshelf.enabled then
          sone.filter(soundData, {
                         type = "lowshelf",
                         frequency = v.eq.lowshelf.frequency,
@@ -386,6 +388,8 @@ function handleThreadInput()
                         gain = v.eq.lowshelf.gain                      
                         
          })
+         end
+         if v.eq.highshelf.enabled then
          sone.filter(soundData, {
                         type = "highshelf",
                         frequency = v.eq.highshelf.frequency,
@@ -394,36 +398,60 @@ function handleThreadInput()
                         gain = v.eq.highshelf.gain                      
                         
          })
+         end
+         if v.eq.highpass.enabled then
+         sone.filter(soundData, {
+                        type = "highpass",
+                        frequency = v.eq.highpass.frequency,
+                        Q=v.eq.highpass.q,
+                        wet=v.eq.highpass.wet,
+         })
+         end
+         if v.eq.lowpass.enabled then
+         sone.filter(soundData, {
+                        type = "lowpass",
+                        frequency = v.eq.lowpass.frequency,
+                        Q=v.eq.lowpass.q,
+                        wet=v.eq.lowpass.wet,
+         })
+         end
+         if v.eq.bandpass.enabled then
+         sone.filter(soundData, {
+                        type = "bandpass",
+                        frequency = v.eq.bandpass.frequency,
+                        Q=v.eq.bandpass.q,
+                        wet=v.eq.bandpass.wet,
 
-         -- sone.filter(soundData, {
-         --                type = "highpass",
-         --                frequency = v.eq.highpass.frequency,
-         --                Q=v.eq.highpass.q,
-         --                wet=v.eq.highpass.wet,
-         -- })
+         })
+         end
+         if v.eq.fadeout > 0 then 
+            sone.fadeOut(soundData, v.eq.fadeout)
+         end
+         if v.eq.fadein > 0 then 
+            sone.fadeIn(soundData, v.eq.fadein)
+         end
 
-         -- sone.filter(soundData, {
-         --                type = "lowpass",
-         --                frequency = v.eq.lowpass.frequency,
-         --                Q=v.eq.lowpass.q,
-         --                wet=v.eq.lowpass.wet,
-         -- })
 
-         
-         -- sone.filter(soundData, {
-         --                type = "bandpass",
-         --                frequency = v.eq.bandpass.frequency,
-         --                Q=v.eq.bandpass.q,
-         --                wet=v.eq.bandpass.wet,
-
-         -- })
-         -- print(inspect(v.eq))
-         sone.fadeOut(soundData, v.eq.fadeout)
-         sone.fadeIn(soundData, v.eq.fadein)
          sound = love.audio.newSource(soundData, 'static')
 
          instrument.sounds[1].sample.soundData = soundData
          instrument.sounds[1].sample.sound = sound
+
+          local loopStart = instrument.sounds[1].sample.loopStart
+          local loopEnd = instrument.sounds[1].sample.loopEnd 
+
+          if loopStart and loopEnd then
+             instrument.sounds[1].sample.fullSoundData = soundData
+             instrument.sounds[1].sample.soundData = soundData
+             
+             local begin = writeSoundData(soundData, 0, loopStart)
+             local middle = writeSoundData(soundData, loopStart, loopEnd)
+             local after = writeSoundData(soundData, loopEnd, soundData:getSampleCount()-1)
+
+             instrument.sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
+          end
+          
+         
          love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
          --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
       end
@@ -445,11 +473,13 @@ while(run ) do
 
    for i =1, #activeSources do
       -- lets first do the queuepart
-      if activeSources[i].usingLoopPoints then
+      if activeSources[i].usingLoopPoints and instrument.sounds[1].sample.loopPointParts then
+
+
          local pitch = activeSources[i].sound:getPitch()
          local tell = (activeSources[i].sound:tell())
          local dur = (activeSources[i].sound:getDuration())
-
+         print(tell)
          local timeLeftInSample = (dur - tell)/pitch
          local noteHasBeenReleasedInPast = activeSources[i].noteOffTime ~= -1 and now - activeSources[i].noteOffTime > 0
          
