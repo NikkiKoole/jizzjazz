@@ -5,9 +5,7 @@ require 'musicBar'
 require 'instrument'
 require 'fileBrowser'
 local thread -- Our thread object.
---luamidi = require "luamidi"
--- upright bass in emu hiphop
---local fft = require 'fft'
+
 function love.keypressed(key)
    if key == 'escape' then
       channel.main2audio:push ( "quit" );
@@ -26,7 +24,7 @@ function mysplit (inputstr, sep)
 end
 
 function love.wheelmoved(a,b)
-   handleMusicBarWheelMoved(musicBar, a,b)
+   --handleMusicBarWheelMoved(musicBar, a,b)
    handleFileBrowserWheelMoved(browser, a,b)
 end
 
@@ -68,7 +66,7 @@ end
 
 
 function love.mousepressed(x,y)
-   handleMusicBarClicked(musicBar,x,y)
+   --handleMusicBarClicked(musicBar,x,y)
 end
 
 function stringEndsWith(str, ending)
@@ -84,7 +82,7 @@ function round(num, numDecimalPlaces)
 end
 
 function love.mousereleased(x,y)
-   handleMusicBarMouseReleased(musicBar,x,y)
+   --handleMusicBarMouseReleased(musicBar,x,y)
    
    dragging = false
    love.mouse.setCursor(cursors.arrow)
@@ -171,6 +169,7 @@ end
 
 
 function love.draw()
+   local screenW, screenH = love.graphics.getDimensions()
    handleMouseClickStart()
    love.graphics.clear(0.93, 0.89, 0.74)
 
@@ -182,64 +181,53 @@ function love.draw()
    love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
 
 
-   renderMusicBar(musicBar)
+   --renderMusicBar(musicBar)
 
    if lastHitNote then
       love.graphics.print(lastHitNote, 50, 10)
    end
    
-   
-   renderBrowser(browser, 40, 330)
+   renderBrowser(browser, 40, screenH - (20 * 20) - 20)
 
    if renderSoundData then
-      renderWave( renderSoundData, 40+200+40, 330+50, 300, 100)
+      renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
    end
    
    if playingSound then
-      renderPlayingSoundBar( 40+200+40, 330+50, 300, 100)
+      renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
    end
    
-   
    if instrument then
-      renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 330, 250, 100)
+      renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
    end
 
    love.graphics.setColor(red[1],red[2],red[3])
    love.graphics.setLineWidth(3)
    if (instrument) then
-      renderEQ(instrument.sounds[1].eq, 40+200+40, 768- 250)
+      renderEQ(instrument.sounds[1].eq, 240 +  40, screenH - (20 * 20))
    end
 
    if (instrument) then
-      renderLabel('fade out', 300, 750)
-      knob = h_slider('fade out', 300 + 100, 750, 200, instrument.sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
+      renderLabel('fade out', 280, 750)
+      knob = h_slider('fade out', 280 + 100, 750, 200, instrument.sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
       if knob.value ~= nil then
          instrument.sounds[1].eq.fadeout = knob.value
          channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
       end
 
-      renderLabel('fade in', 300, 800)
-      knob = h_slider('fade in', 300 + 100, 800, 200, instrument.sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
+      renderLabel('fade in', 280, 800)
+      knob = h_slider('fade in', 280 + 100, 800, 200, instrument.sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
       if knob.value ~= nil then
          instrument.sounds[1].eq.fadein = knob.value
          channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
       end
    end
-     -- runningY = runningY + 50
-     -- renderLabel('fade in', x, runningY-10)
-     -- knob = h_slider('fade in', x + 100, runningY-10, 200, eq.fadein or 0 , 0.0, activeSoundData:getDuration()-0.001 )
-     -- if knob.value ~= nil then
-     --    eq.fadein = knob.value
-     --    channel.main2audio:push ( {eq = eq} );
-     -- end
-     -- end
-     -- love.graphics.setLineWidth(1)
    
    love.graphics.setColor(red[1],red[2],red[3])
    love.graphics.setLineWidth(3)
 
    if (instrument) then
-      renderInstrumentSettings(instrument, 750, 530)
+      renderInstrumentSettings(instrument, 660, 630)
    end
 
 
@@ -250,6 +238,12 @@ function love.draw()
       local strW = getStringWidth(str)
       love.graphics.print(str, i*32  + (32-strW)/2, 80)
       love.graphics.rectangle('line', i*32, 100, 32,32)
+   end
+   for i = 17, 32 do
+      local str = i - 16
+      local strW = getStringWidth(str)
+      love.graphics.print(str,16+ i*32  + (32-strW)/2, 80)
+      love.graphics.rectangle('line',16 + i*32, 100, 32,32)
    end
    
 end
@@ -278,6 +272,8 @@ function renderPlayingSoundBar(x,y, width, height)
             -- multiple middle parts are queued
             -- middle and after is queued
             t = 0
+            tell = tell % middleDur
+            t = (tell + beginDur)/ playingSound.fullSound:getDuration()
          end
          
       else
