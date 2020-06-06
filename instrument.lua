@@ -38,7 +38,10 @@ function getRhodes()
       
       sounds = {
          {sample = {path= dir("A_029__F1_3.wav"),loopStart=165661, loopEnd=169724, root=29, rootVelocity=50}},
+         --{sample = {path= dir("A_029__F1_4.wav"),loopStart=97231, loopEnd=102325, root=29, rootVelocity=50}},
+
          {sample = {path= dir("A_035__B1_3.wav"),loopStart=119965, loopEnd=122111, root=35, rootVelocity=50}},
+         
          {sample = {path= dir("A_040__E2_3.wav"),loopStart=131975, loopEnd=134638, root=40, rootVelocity=50}},
          {sample = {path= dir("A_045__A2_3.wav"),loopStart=117892, loopEnd=123090, root=45, rootVelocity=50}},
          {sample = {path= dir("A_050__D3_3.wav"),loopStart=136430, loopEnd=140318, root=50, rootVelocity=50}},

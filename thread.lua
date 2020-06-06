@@ -37,7 +37,7 @@ function getQueueable(s)
 end
 
 
-instrument = getRhodes()
+instrument = getDefaultInstrument()  --getRhodes()
 local vanillaAdsr = {
    attack = 0.01,
    max   = .50,

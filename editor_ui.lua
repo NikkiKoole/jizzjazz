@@ -64,7 +64,7 @@ function renderInstrumentSettings(instrument, x, y)
       channel.main2audio:push( {instrument=instrument} );
    end
 
-   knob = draw_knob('vibratoSpeed', x+150,y+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
+   knob = draw_knob('vibratoSpeed', x+150,y+ 170, instrument.settings.vibratoSpeed, 0.001, 16* 6)
    if knob.value ~= nil then
       instrument.settings.vibratoSpeed = knob.value
       --print(k.value)
