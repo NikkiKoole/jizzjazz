@@ -27,6 +27,7 @@ end
 
 function love.wheelmoved(a,b)
    handleMusicBarWheelMoved(musicBar, a,b)
+   handleFileBrowserWheelMoved(browser, a,b)
 end
 
 
@@ -133,7 +134,7 @@ function love.load()
       offset = {x=0, y=0}
    }
 
-   instrument = getDefaultInstrument()
+   --instrument = getDefaultInstrument()
    renderSoundData = nil
    playingSound = nil
 
@@ -188,12 +189,10 @@ function love.draw()
    if lastHitNote then
       love.graphics.print(lastHitNote, 12, 120)
    end
-
-
    
-  
-   renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 50, 250, 100)
-
+   if instrument then
+      renderADSREnvelope(instrument.sounds[1].adsr,1024 -  400, 50, 250, 100)
+   end
    
    if renderSoundData then
       renderWave( renderSoundData, 1024-400, 400-30, 300, 100)
@@ -201,127 +200,53 @@ function love.draw()
    love.graphics.setColor(1,1,1)
    if playingSound then
       if playingSound.sound:isPlaying() then
-                  local t = 0
+         local t = 0
 
          if (playingSound.loopParts) then
-         local dur = round(playingSound.sound:getDuration(),2)
-         local beginDur =  round(playingSound.loopParts.begin:getDuration(),2)
-         local middleDur = round(playingSound.loopParts.middle:getDuration(),2)
-         local afterDur = round(playingSound.loopParts.after:getDuration(),2)
+         local dur = round(playingSound.sound:getDuration(),3)
+         local beginDur =  round(playingSound.loopParts.begin:getDuration(),3)
+         local middleDur = round(playingSound.loopParts.middle:getDuration(),3)
+         local afterDur = round(playingSound.loopParts.after:getDuration(),3)
          local tell = playingSound.sound:tell()
-         --print(dur, beginDur, middleDur, afterDur)
+
          if beginDur == dur then
-            --print('begin')
             t = tell/ playingSound.fullSound:getDuration()
          elseif middleDur == dur then
-            --print('middle')
             t = (tell + beginDur)/ playingSound.fullSound:getDuration()
          elseif afterDur == dur then
-            --print('after')
             t = (tell + beginDur + middleDur)/ playingSound.fullSound:getDuration()
 
          else
-            --local d = (dur - beginDur) % middleDur
-            
-            --print(d, dur, beginDur, middleDur, afterDur)
-            --print('durp', dur)
+            -- here a few things could be happening
+            -- multiple middel parts are queued
+            -- middle and after is queed
             t = 0
          end
          
          else
+         if playingSound.fullSound then  
+            t = playingSound.sound:tell()/ playingSound.fullSound:getDuration()
+         else
+             t = playingSound.sound:tell()/ playingSound.sound:getDuration()
+         end
+            
          
-         t = playingSound.sound:tell()/ playingSound.fullSound:getDuration()
          end
          local x = 1024-400 + t*(300)
          love.graphics.line(x, 400-30-50, x, 400-30+100-50 )
       end
    end
-   
-   --if (instrument.sounds[1].samples[1].sound) then
-   --   print(instrument.sounds[1].samples[1].sound:isPlaying())
-   --end
-   renderEQ(instrument.sounds[1].eq, 1024 - 400, 768- 250)
 
+   if (instrument) then
+      renderEQ(instrument.sounds[1].eq, 1024 - 400, 768- 250)
+   end
    
    love.graphics.setColor(red[1],red[2],red[3])
    love.graphics.setLineWidth(3)
 
    
 
-   
-   local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanillaLooping)
-
-   if knob.value ~= nil then
-      instrument.settings.useVanillaLooping = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
+   if (instrument) then
+      renderInstrumentSettings(instrument)
    end
-
-   knob = drawToggle('glide', 100,100+ 40, instrument.settings.glide)
-   if knob.value ~= nil then
-      instrument.settings.glide = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-     knob = draw_knob('glideDuration', 250,100+ 50, instrument.settings.glideDuration, 0, 2)
-   if knob.value ~= nil then
-      instrument.settings.glideDuration = knob.value
-      --print(k.value)
-
-      channel.main2audio:push( {instrument=instrument} );
-   end
-
-   knob = drawToggle('useSustain', 100,100+ 80, instrument.settings.useSustain)
-   if knob.value ~= nil then
-      instrument.settings.useSustain = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-
-
-    knob = drawToggle('mono', 100,100+ 120, instrument.settings.monophonic)
-   if knob.value ~= nil then
-      instrument.settings.monophonic = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-
-   knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
-   if knob.value ~= nil then
-      instrument.settings.vibrato = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-   knob = drawToggle('adsr pitch', 100,100+ 200, instrument.settings.usePitchForADSR)
-   if knob.value ~= nil then
-      instrument.settings.usePitchForADSR = knob.value
-      --print(k.value)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-
-   knob = draw_knob('vibratoSpeed', 250,100+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
-   if knob.value ~= nil then
-      instrument.settings.vibratoSpeed = knob.value
-      --print(k.value)
-      print(instrument.settings.vibratoSpeed)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-   knob = draw_knob('vibratoStrength', 300,100+ 170, instrument.settings.vibratoStrength, 0.1, 5)
-   if knob.value ~= nil then
-      instrument.settings.vibratoStrength = knob.value
-      --print(k.value)
-      print(instrument.settings.vibratoStrength)
-      channel.main2audio:push( {instrument=instrument} );
-   end
-  
-
-
-   
-   love.graphics.setColor(0,0,0)
-   renderLabel("vanilla loop", 100+50,100)
-   renderLabel("glide", 100+50,100+40)
-   renderLabel("sustain", 100+50,100+80)
-   renderLabel("monophonic", 100+50,100+120)
-   renderLabel("vibrato", 100+50,100+160)
-   renderLabel("adsr pitch", 100+50,100+200)
 end

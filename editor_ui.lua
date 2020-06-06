@@ -13,6 +13,84 @@ function renderLabel(str, x,y)
    love.graphics.print(str, x, y)
 end
 
+function renderInstrumentSettings(instrument)
+local knob = drawToggle('vanilla looping', 100,100, instrument.settings.useVanillaLooping)
+
+   if knob.value ~= nil then
+      instrument.settings.useVanillaLooping = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = drawToggle('glide', 100,100+ 40, instrument.settings.glide)
+   if knob.value ~= nil then
+      instrument.settings.glide = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+     knob = draw_knob('glideDuration', 250,100+ 50, instrument.settings.glideDuration, 0, 2)
+   if knob.value ~= nil then
+      instrument.settings.glideDuration = knob.value
+      --print(k.value)
+
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = drawToggle('useSustain', 100,100+ 80, instrument.settings.useSustain)
+   if knob.value ~= nil then
+      instrument.settings.useSustain = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+
+    knob = drawToggle('mono', 100,100+ 120, instrument.settings.monophonic)
+   if knob.value ~= nil then
+      instrument.settings.monophonic = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = drawToggle('vibrato', 100,100+ 160, instrument.settings.vibrato)
+   if knob.value ~= nil then
+      instrument.settings.vibrato = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+   knob = drawToggle('adsr pitch', 100,100+ 200, instrument.settings.usePitchForADSR)
+   if knob.value ~= nil then
+      instrument.settings.usePitchForADSR = knob.value
+      --print(k.value)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+
+   knob = draw_knob('vibratoSpeed', 250,100+ 170, instrument.settings.vibratoSpeed, 0.001, 16)
+   if knob.value ~= nil then
+      instrument.settings.vibratoSpeed = knob.value
+      --print(k.value)
+      print(instrument.settings.vibratoSpeed)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+   knob = draw_knob('vibratoStrength', 300,100+ 170, instrument.settings.vibratoStrength, 0.1, 5)
+   if knob.value ~= nil then
+      instrument.settings.vibratoStrength = knob.value
+      --print(k.value)
+--      print(instrument.settings.vibratoStrength)
+      channel.main2audio:push( {instrument=instrument} );
+   end
+  
+
+
+   
+   love.graphics.setColor(0,0,0)
+   renderLabel("vanilla loop", 100+50,100)
+   renderLabel("glide", 100+50,100+40)
+   renderLabel("sustain", 100+50,100+80)
+   renderLabel("monophonic", 100+50,100+120)
+   renderLabel("vibrato", 100+50,100+160)
+   renderLabel("adsr pitch", 100+50,100+200)
+
+end
 
 
 function renderEQ(eq, x, y)

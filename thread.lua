@@ -3,7 +3,7 @@ require('love.sound')
 require('love.audio')
 require('love.math')
 sone = require 'sone'
-
+require 'instrument'
 --https://github.com/danigb/timestretch/blob/master/lib/index.js
 
 luamidi = require "luamidi"
@@ -37,33 +37,34 @@ function getQueueable(s)
 end
 
 
-instrument = ...
+instrument = getDefaultInstrument()
 for i =1 , #instrument.sounds do
-   local s = love.sound.newSoundData( instrument.sounds[1].samples[1].path )
+   local s = love.sound.newSoundData( instrument.sounds[1].sample.path )
 
-   local loopStart = instrument.sounds[1].samples[1].loopStart
-   local loopEnd = instrument.sounds[1].samples[1].loopEnd 
+   local loopStart = instrument.sounds[1].sample.loopStart
+   local loopEnd = instrument.sounds[1].sample.loopEnd 
 
    if (loopStart and loopEnd) then
-      instrument.sounds[1].samples[1].fullSoundData = s
-      instrument.sounds[1].samples[1].soundData = s
+      instrument.sounds[1].sample.fullSoundData = s
+      instrument.sounds[1].sample.soundData = s
       
       local begin = writeSoundData(s, 0, loopStart)
       local middle = writeSoundData(s, loopStart, loopEnd)
       local after = writeSoundData(s, loopEnd, s:getSampleCount()-1)
 
-      instrument.sounds[1].samples[1].loopPointParts = {begin=begin, middle=middle, after=after}
+      instrument.sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
 
    else
-      instrument.sounds[1].samples[1].soundData =s
-      instrument.sounds[1].samples[1].sound =
+      instrument.sounds[1].sample.fullSoundData = s
+      instrument.sounds[1].sample.soundData =s
+      instrument.sounds[1].sample.sound =
       love.audio.newSource(s, 'static')
    end
 end
 
 
 
-love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].samples[1].soundData})
+love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
 love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
 
 activeSources = {}
@@ -153,14 +154,14 @@ function playNote(semitone, velocity, instrument)
    else
       local s2
       local usingLoopPoints = false
-      if sound.samples[1].loopPointParts then
+      if sound.sample.loopPointParts then
          usingLoopPoints = true
-         s2 = getQueueable(sound.samples[1].soundData)
-         s2:queue(sound.samples[1].loopPointParts.begin)
+         s2 = getQueueable(sound.sample.soundData)
+         s2:queue(sound.sample.loopPointParts.begin)
       else
-         s2 = sound.samples[1].sound:clone()
+         s2 = sound.sample.sound:clone()
       end
-      local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints, loopParts = sound.samples[1].loopPointParts, fullSound=sound.samples[1].fullSoundData }
+      local s = {sound=s2, key=semitone, noteOnTime=now, noteOffTime=-1 , usingLoopPoints=usingLoopPoints, loopParts = sound.sample.loopPointParts, fullSound=sound.sample.fullSoundData }
 
       if settings.useSustain == false then
          if settings.usePitchForADSR then
@@ -203,8 +204,8 @@ end
 function getPitch(activeSource, offset)
    local transpose = instrument.settings.transpose
    local rootTranspose =  0
-   if instrument.sounds[1].samples[1].root then
-      rootTranspose = 72 - instrument.sounds[1].samples[1].root
+   if instrument.sounds[1].sample.root then
+      rootTranspose = 72 - instrument.sounds[1].sample.root
    end
    local index = activeSource.key + (offset or 0) + transpose + rootTranspose
    
@@ -265,6 +266,176 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
    return volume
 end
 
+function handleMIDIInput()
+   if luamidi and luamidi.getinportcount() > 0 then
+      --print('yo')
+      local a, b, c, d = nil
+      a,b,c,d = luamidi.getMessage(0)
+      --https://en.wikipedia.org/wiki/List_of_chords
+      --local integers = {0, 4,7,11}
+      local integers = {0}
+
+      --local integers = {0, 4, 7, 11}
+      --local integers = {0, 3, 7, 9}
+      if a ~= nil then
+         -- look for an NoteON command
+
+         if a == 144 then
+            --print('midi message play', b)
+            playNote(b, c, instrument)
+         elseif a == 128 then
+            stopNote(b)
+         elseif a == 176 then
+            if b == 2 then
+               instrument.settings.vibratoSpeed = 96/ math.max(c,1)
+            elseif b == 3 then
+               instrument.settings.vibratoStrength = math.max(c,1)
+
+            else
+               print('knob', b,c)
+            end
+            
+            
+            --lfoThing = c
+         elseif a == 224 then
+            pitchNote(c)
+         else
+            
+            print("unknown midi message: ", a, b,c,d)
+         end
+      end
+   end
+   
+
+end
+
+function handleThreadInput()
+   local v = channel.main2audio:pop();
+   if v then
+      if (v == 'quit') then
+         for i = 1, #activeSources do
+            activeSources[i].sound:stop()
+            if activeSources[i].extra then
+               for j=1,  #activeSources[i].extra do
+                  activeSources[i].extra[j].sound:stop()
+               end
+            end
+         end
+         
+         luamidi.gc()
+         run = false
+         love.thread.getChannel( 'audio2main' ):push('quit')
+      end
+      if v.instrument then
+         instrument = v.instrument
+
+      end
+      if v.adsr then
+         instrument.sounds[1].adsr = v.adsr
+
+      end
+      if v.osc  then
+         instrument.settings.useVanillaLooping = true
+         --oscUrl = v.osc
+         soundData = love.sound.newSoundData( v.osc )
+         
+         --    -- sone.filter(soundData, {
+         --    --                 type = "highpass",
+         --    --                 frequency = 5000,
+         --    -- })
+         --    sone.filter(soundData, {
+         --                    type = "lowpass",
+         --                    frequency = filterfreq,
+         --    })
+         --    --print(sound)
+         sound = love.audio.newSource(soundData, 'static')
+         instrument.sounds[1].sample.loopPointParts = undefined
+         instrument.sounds[1].sample.path = v.osc
+         instrument.sounds[1].sample.fullSoundData = s
+         instrument.sounds[1].sample.soundData = soundData
+         instrument.sounds[1].sample.sound = sound
+         love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
+         love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
+         
+
+      end
+      
+      if v.eq then
+         -- print('what?')
+         soundData =  instrument.sounds[1].sample.soundData
+         --soundData = love.sound.newSoundData(instrument.sounds[1].sample.path)
+         -- sone.filter(soundData, {
+         --                  type = "highshelf",
+         --                  frequency =  v.eq.lowpass.frequency,
+         --                  Q=v.eq.lowpass.q,
+         --                  gain = v.eq.lowpass.gain                      
+         
+         -- })
+         --sone.fadeOut(soundData, 0.15)
+         --sone.amplify(soundData, v.eq.lowpass.gain)
+
+
+         
+         
+         
+         sone.filter(soundData, {
+                        type = "lowshelf",
+                        frequency = v.eq.lowshelf.frequency,
+                        Q=v.eq.lowshelf.q,
+                        wet=v.eq.lowshelf.wet,
+                        gain = v.eq.lowshelf.gain                      
+                        
+         })
+         sone.filter(soundData, {
+                        type = "highshelf",
+                        frequency = v.eq.highshelf.frequency,
+                        Q=v.eq.highshelf.q,
+                        wet=v.eq.highshelf.wet,
+                        gain = v.eq.highshelf.gain                      
+                        
+         })
+
+         -- sone.filter(soundData, {
+         --                type = "highpass",
+         --                frequency = v.eq.highpass.frequency,
+         --                Q=v.eq.highpass.q,
+         --                wet=v.eq.highpass.wet,
+         -- })
+
+         -- sone.filter(soundData, {
+         --                type = "lowpass",
+         --                frequency = v.eq.lowpass.frequency,
+         --                Q=v.eq.lowpass.q,
+         --                wet=v.eq.lowpass.wet,
+         -- })
+
+         
+         -- sone.filter(soundData, {
+         --                type = "bandpass",
+         --                frequency = v.eq.bandpass.frequency,
+         --                Q=v.eq.bandpass.q,
+         --                wet=v.eq.bandpass.wet,
+
+         -- })
+         -- print(inspect(v.eq))
+         sone.fadeOut(soundData, v.eq.fadeout)
+         sone.fadeIn(soundData, v.eq.fadein)
+         sound = love.audio.newSource(soundData, 'static')
+
+         instrument.sounds[1].sample.soundData = soundData
+         instrument.sounds[1].sample.sound = sound
+         love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
+         --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
+      end
+      
+      --channel.main2audio:push ( {eqcutoff = eqcutoff.value} );
+      
+      --channel.a:push ( "bar" )
+   end
+   
+end
+
+
 while(run ) do
    if #activeSources == 0 then
 --      print('no one here')
@@ -284,14 +455,14 @@ while(run ) do
          
          if (noteHasBeenReleasedInPast) then
             local releaseDuration =  instrument.sounds[1].adsr.release
-            local afterLength =  instrument.sounds[1].samples[1].loopPointParts.after:getDuration() 
+            local afterLength =  instrument.sounds[1].sample.loopPointParts.after:getDuration() 
             if timeLeftInSample + afterLength >= releaseDuration then
-               activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.after)
+               activeSources[i].sound:queue(instrument.sounds[1].sample.loopPointParts.after)
             end
          end
 
          if (timeLeftInSample < 0.016) then -- only 16 ms left
-            activeSources[i].sound:queue(instrument.sounds[1].samples[1].loopPointParts.middle)
+            activeSources[i].sound:queue(instrument.sounds[1].sample.loopPointParts.middle)
          end
       end
       
@@ -353,172 +524,15 @@ while(run ) do
    for i = #activeSources, 1, -1 do
       if activeSources[i].released == true then
          local remove = false
-         if activeSources[i].sound:getVolume() < 0.0001 and now > activeSources[i].noteOnTime then
+         if activeSources[i].sound:getVolume() < 0.01 and now > activeSources[i].noteOnTime then
             activeSources[i].sound:setVolume(0)
             activeSources[i].remove = true
          end
       end
    end
    
-   if luamidi and luamidi.getinportcount() > 0 then
-      --print('yo')
-      local a, b, c, d = nil
-      a,b,c,d = luamidi.getMessage(0)
-      --https://en.wikipedia.org/wiki/List_of_chords
-      --local integers = {0, 4,7,11}
-      local integers = {0}
-
-      --local integers = {0, 4, 7, 11}
-      --local integers = {0, 3, 7, 9}
-      if a ~= nil then
-         -- look for an NoteON command
-
-         if a == 144 then
-            --print('midi message play', b)
-            playNote(b, c, instrument)
-         elseif a == 128 then
-            stopNote(b)
-         elseif a == 176 then
-            if b == 2 then
-               instrument.settings.vibratoSpeed = 96/ math.max(c,1)
-            elseif b == 3 then
-               instrument.settings.vibratoStrength = math.max(c,1)
-
-            else
-               print('knob', b,c)
-            end
-            
-            
-            --lfoThing = c
-         elseif a == 224 then
-            pitchNote(c)
-         else
-            
-            print("unknown midi message: ", a, b,c,d)
-         end
-      end
-   end
-   
-
-   
-   local v = channel.main2audio:pop();
-   if v then
-      if (v == 'quit') then
-         for i = 1, #activeSources do
-            activeSources[i].sound:stop()
-            if activeSources[i].extra then
-               for j=1,  #activeSources[i].extra do
-                  activeSources[i].extra[j].sound:stop()
-               end
-            end
-         end
-         
-         luamidi.gc()
-         run = false
-         love.thread.getChannel( 'audio2main' ):push('quit')
-      end
-      if v.instrument then
-         instrument = v.instrument
-         print('hello instrument', inspect(instrument))
-      end
-      if v.adsr then
-         instrument.sounds[1].adsr = v.adsr
-
-      end
-      if v.osc  then
-         instrument.settings.useVanillaLooping = true
-         oscUrl = v.osc
-         print(oscUrl)
-         soundData = love.sound.newSoundData( v.osc )
-         
-         --    -- sone.filter(soundData, {
-         --    --                 type = "highpass",
-         --    --                 frequency = 5000,
-         --    -- })
-         --    sone.filter(soundData, {
-         --                    type = "lowpass",
-         --                    frequency = filterfreq,
-         --    })
-         --    --print(sound)
-         sound = love.audio.newSource(soundData, 'static')
-         love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
-         instrument.sounds[1].samples[1].soundData = soundData
-         instrument.sounds[1].samples[1].sound = sound
-
-      end
-      
-      if v.eq then
-         -- print('what?')
-         soundData =  instrument.sounds[1].samples[1].soundData
-         --soundData = love.sound.newSoundData(instrument.sounds[1].samples[1].path)
-         -- sone.filter(soundData, {
-         --                  type = "highshelf",
-         --                  frequency =  v.eq.lowpass.frequency,
-         --                  Q=v.eq.lowpass.q,
-         --                  gain = v.eq.lowpass.gain                      
-         
-         -- })
-         --sone.fadeOut(soundData, 0.15)
-         --sone.amplify(soundData, v.eq.lowpass.gain)
-
-
-         
-         
-         
-         sone.filter(soundData, {
-                        type = "lowshelf",
-                        frequency = v.eq.lowshelf.frequency,
-                        Q=v.eq.lowshelf.q,
-                        wet=v.eq.lowshelf.wet,
-                        gain = v.eq.lowshelf.gain                      
-                        
-         })
-         sone.filter(soundData, {
-                        type = "highshelf",
-                        frequency = v.eq.highshelf.frequency,
-                        Q=v.eq.highshelf.q,
-                        wet=v.eq.highshelf.wet,
-                        gain = v.eq.highshelf.gain                      
-                        
-         })
-
-         -- sone.filter(soundData, {
-         --                type = "highpass",
-         --                frequency = v.eq.highpass.frequency,
-         --                Q=v.eq.highpass.q,
-         --                wet=v.eq.highpass.wet,
-         -- })
-
-         -- sone.filter(soundData, {
-         --                type = "lowpass",
-         --                frequency = v.eq.lowpass.frequency,
-         --                Q=v.eq.lowpass.q,
-         --                wet=v.eq.lowpass.wet,
-         -- })
-
-         
-         -- sone.filter(soundData, {
-         --                type = "bandpass",
-         --                frequency = v.eq.bandpass.frequency,
-         --                Q=v.eq.bandpass.q,
-         --                wet=v.eq.bandpass.wet,
-
-         -- })
-         -- print(inspect(v.eq))
-         sone.fadeOut(soundData, v.eq.fadeout)
-         sone.fadeIn(soundData, v.eq.fadein)
-         sound = love.audio.newSource(soundData, 'static')
-
-         instrument.sounds[1].samples[1].soundData = soundData
-         instrument.sounds[1].samples[1].sound = sound
-         love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
-         --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
-      end
-      
-      --channel.main2audio:push ( {eqcutoff = eqcutoff.value} );
-      
-      --channel.a:push ( "bar" )
-   end
+   handleMIDIInput()
+   handleThreadInput()
    
    
    local n = love.timer.getTime()

@@ -16,6 +16,7 @@ function vanillaFilter(gain)
 end
 
 
+
 function getDefaultInstrument()
    return {
       settings = {
@@ -36,21 +37,28 @@ function getDefaultInstrument()
       --"assets/samples/SIDSQUAW.wav"
       sounds = {
          {
-            samples = {{
+            sample = {
                   -- path= "assets/samples/rhodes/A_055__G3_3.wav",
                   -- loopStart=112434,
-                  -- loopEnd=117151,
+               -- loopEnd=117151,
+               --   root=55,
 
-                 path= "assets/samples/begin_nogeenkeer_einde.wav",
-                  loopStart=27522,
-                  loopEnd=68295,
+                -- path= "assets/samples/begin_nogeenkeer_einde.wav",
+                  --loopStart=27522,
+                  --loopEnd=68295,
 
-                 --path="assets/samples/SIDSQUAW.wav",
-                  soundData=nil,
-                  sound=nil,
-                  root=55,
+
+               path="assets/samples/Upright Bass F#2.wav",
+               loopStart=6376,
+               loopEnd=6676,
+               root=60,
+               
+               --  path="assets/samples/SIDSQUAW.wav",
+                 --soundData=nil,
+                 --sound=nil,
+              
                 
-            }},
+            },
             adsr = {
                attack = 0.01,
                max   = .50,
