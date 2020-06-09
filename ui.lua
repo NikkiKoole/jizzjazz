@@ -40,23 +40,24 @@ function draw_button(x,y,p, run)
       clicked=result
    }
 end
-function draw_label_button(x,y, label, p, run)
-   local buttonWidth = 90
+function draw_label_button(x,y, label, p)
+   --local buttonWidth = 90
+   --local cellHeight = 32
    local result= false
-   if p then
-      local r,g,b,a = love.graphics.getColor()
-      love.graphics.setColor(r,g,b,0.5)
-      love.graphics.rectangle('fill',x,y,buttonWidth,cellHeight )
-      love.graphics.setColor(r,g,b,a)
+   local w = font:getWidth( label )
+   local h = font:getHeight( label )
 
-   else
-      love.graphics.rectangle('line',x,y,buttonWidth,cellHeight )
-   end
-   love.graphics.print(label, x+5, y)
+   love.graphics.setColor(0,0,0)
+   love.graphics.rectangle('fill',x-5,y-2,w+10,h+4)
+   
+   love.graphics.setColor(red[1], red[2], red[3])
+   love.graphics.rectangle('line',x-5,y-2,w+10,h+4)
+   love.graphics.setColor(1,1,1)
+   love.graphics.print(label, x, y)
 
-   if run then
+   if mouseState.click then
       local mx, my = love.mouse.getPosition( )
-      if pointInRect(mx,my, x,y,buttonWidth,cellHeight) then
+      if pointInRect(mx,my, x,y,w,h) then
          result = true
       end
    end
@@ -130,6 +131,7 @@ function handleMouseClickStart()
    end
    mouseState.lastDown =  mouseState.down
 end
+
 
 
 function drawToggle(id, x,y, state)

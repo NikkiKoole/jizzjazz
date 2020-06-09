@@ -37,13 +37,20 @@ function getQueueable(s)
 end
 
 
-instrument = getDefaultInstrument()  --getRhodes()
+--instrument = getVibraphone()--getSho() --getRhodes() -- getDefaultInstrument()  --getRhodes()
+--instrument = getRhodes()
+--instrument = getSho()
+--instrument = getUprightBass()
+--instrument = getYoshiVibraphone()
+--instrument= getMother3EPiano()
+instrument= getRecorder()
+
 local vanillaAdsr = {
    attack = 0.01,
    max   = .50,
    decay = 0.0,
    sustain= .50,
-   release = .1,
+   release = .2,
 }
 local vanillaEq = {
    fadeout = 0,
@@ -59,6 +66,9 @@ local vanillaEq = {
 for i =1 , #instrument.sounds do
    local s = love.sound.newSoundData( instrument.sounds[i].sample.path )
 
+   if instrument.adsr then
+      instrument.sounds[i].adsr = instrument.adsr
+   end
    
    if not instrument.sounds[i].adsr then
       instrument.sounds[i].adsr = vanillaAdsr
@@ -154,7 +164,6 @@ function getSoundForSemitoneAndVelocity(semitone, velocity)
             bestScored = instrument.sounds[i]
          end
       end
-      print(inspect(bestScored))
       return bestScored
    end
    
@@ -163,6 +172,7 @@ end
 
 
 function playNote(semitone, velocity, instrument)
+
    local settings = instrument.settings
    
    
@@ -179,6 +189,7 @@ function playNote(semitone, velocity, instrument)
       activeSources[index].key = semitone
       activeSources[index].released = nil
       activeSources[index].noteOnTime=now
+      activeSources[index].noteOnVelocity=velocity
       
       if settings.glide then
          activeSources[index].glideFromPitch = activeSources[index].sound:getPitch()
@@ -223,6 +234,7 @@ function playNote(semitone, velocity, instrument)
                  pickedInstrumentSound = sound,
                  key=semitone,
                  noteOnTime=now,
+                 noteOnVelocity=velocity,
                  noteOffTime=-1 ,
                  usingLoopPoints=usingLoopPoints,
                  loopParts = sound.sample.loopPointParts,
@@ -359,13 +371,10 @@ function handleMIDIInput()
             else
                print('knob', b,c)
             end
-            
-            
-            --lfoThing = c
+
          elseif a == 224 then
             pitchNote(c)
          else
-            
             print("unknown midi message: ", a, b,c,d)
          end
       end
@@ -399,6 +408,23 @@ function handleThreadInput()
          instrument.sounds[1].adsr = v.adsr
 
       end
+
+      if v.instrumentStartEnd then
+         local d = v.instrumentStartEnd
+         local loopStart = d.sounds[1].sample.loopStart
+         local loopEnd = d.sounds[1].sample.loopEnd 
+
+         if loopStart and loopEnd then
+            instrument.sounds[1].sample.loopStart = loopStart
+            instrument.sounds[1].sample.loopEnd =loopEnd
+            local soundData = instrument.sounds[1].sample.soundData
+            local begin = writeSoundData(soundData, 0, loopStart)
+            local middle = writeSoundData(soundData, loopStart, loopEnd)
+            local after = writeSoundData(soundData, loopEnd, soundData:getSampleCount())
+            instrument.sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
+         end
+      end
+      
       if v.osc  then
          instrument =  getDefaultInstrument()
          instrument.settings.useVanillaLooping = true
@@ -526,7 +552,11 @@ while(run ) do
          end
 
          if (timeLeftInSample < 0.016) then -- only 16 ms left
+            
             activeSources[i].sound:queue(activeSources[i].pickedInstrumentSound.sample.loopPointParts.middle)
+           
+            
+            --print(pitch)
          end
       end
       
@@ -539,8 +569,8 @@ while(run ) do
                               activeSources[i].pickedInstrumentSound.adsr,
                               activeSources[i].isEcho,
                               settings.usePitchForADSR and  pitch or 1)
-
-      activeSources[i].sound:setVolume(v)
+      local vel = (activeSources[i].noteOnVelocity/127)
+      activeSources[i].sound:setVolume(v * vel)
       
       -- glide / portamento
       

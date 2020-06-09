@@ -132,6 +132,9 @@ function renderEQ(eq, x, y)
            end
             if labels[i] == 'notch' then
               max = 48000/64
+            end
+            if labels[i] == 'lowshelf' then
+                max = 48000/128
            end
 
            
@@ -240,10 +243,10 @@ function renderADSREnvelope(adsr, x, y, width, height)
   
   
 
-function renderWave(data,  xOff, yOff, width, height)
+function renderWave(data,  xOff, yOff, width, height, startPos_, endPos_)
    local count = data:getSampleCount( )
-   local endPos = count-1 
-   local startPos = 0
+   local endPos = endPos_ or count-1 
+   local startPos = startPos_ or 0
 
    love.graphics.setColor(1,1,1,0.6)
    love.graphics.rectangle("fill", xOff-2, yOff-height/2, width, height)

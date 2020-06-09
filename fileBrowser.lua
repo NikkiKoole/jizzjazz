@@ -67,6 +67,7 @@ end
 
 
 function renderBrowser(browser, x, y)
+   --if not browser then return end
    local runningX, runningY
    browser.x = x
    browser.y = y
@@ -107,7 +108,11 @@ function handleBrowserClick(browser,x,y)
    if x> browser.x and x < browser.x+200 and y > browser.y then
       local index = math.floor((y-browser.y)/20) + 1
       index = index + browser.scrollTop
+      
       local thing = browser.all[index]
+
+      if index > #browser.all then return end
+      if not thing then return end
       if thing.type == 'directory' then
          if thing.path=='..' then
             table.remove(browser.subdirs)

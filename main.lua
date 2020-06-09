@@ -10,6 +10,56 @@ function love.keypressed(key)
    if key == 'escape' then
       channel.main2audio:push ( "quit" );
    end
+   if  lpUI.enabed and instrument then
+      local down = love.keyboard.isDown( 'lshift' )
+      local multiplier = 1
+      local changedLoopPoints = false
+      if down then multiplier = 10 end
+
+      local ls = instrument.sounds[1].sample.loopStart
+      local le = instrument.sounds[1].sample.loopEnd
+
+      if ls and le then
+      if key =='z' then
+         instrument.sounds[1].sample.loopStart = ls - multiplier
+         changedLoopPoints = true
+      end
+      if key =='x' then
+         instrument.sounds[1].sample.loopStart = ls + multiplier
+         changedLoopPoints = true
+      end
+
+      if key =='n' then
+         instrument.sounds[1].sample.loopEnd = le - multiplier
+         changedLoopPoints = true
+      end
+      if key =='m' then
+         instrument.sounds[1].sample.loopEnd = le + multiplier
+         changedLoopPoints = true
+      end
+     
+      if instrument.sounds[1].sample.loopStart > instrument.sounds[1].sample.loopEnd then
+          instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd
+      end
+      if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
+           instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
+      end
+      if instrument.sounds[1].sample.loopStart < 1 then
+           instrument.sounds[1].sample.loopStart = 1
+      end
+     
+      if instrument.sounds[1].sample.loopEnd > instrument.sounds[1].sample.soundData:getSampleCount()-1 then
+           instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.soundData:getSampleCount()-1
+      end
+       
+      if changedLoopPoints then
+         channel.main2audio:push( {instrumentStartEnd=instrument} );
+      end
+
+      end
+      
+   end
+   
 end
 
 function mysplit (inputstr, sep)
@@ -26,6 +76,7 @@ end
 function love.wheelmoved(a,b)
    --handleMusicBarWheelMoved(musicBar, a,b)
    handleFileBrowserWheelMoved(browser, a,b)
+   handleWavLoopZoom(a,b)
 end
 
 
@@ -88,6 +139,16 @@ function love.mousereleased(x,y)
    love.mouse.setCursor(cursors.arrow)
 
    browser = handleBrowserClick(browser, x,y)
+
+   if lastDraggedElement then
+      if lastDraggedElement.id == 'startPos' or lastDraggedElement.id == 'endPos' then
+         channel.main2audio:push( {instrumentStartEnd=instrument} );
+      end
+      
+   end
+   
+
+   
    lastDraggedElement = nil
 end
 
@@ -141,6 +202,25 @@ function love.load()
    channel		= {};
    channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
    channel.main2audio	= love.thread.getChannel ( "main2audio" ); -- from main
+
+
+
+   testNotes = {
+
+   }
+
+   lpUI = {
+      enabed = true,
+      x = 400,
+      y = 700,
+      width = 500,
+      height = 300
+   }
+   
+   for i = 1, 200 do
+      testNotes[i] = {key=math.floor(math.random()*144), length=math.ceil(math.random()*4), x=math.ceil(math.random()*600)}
+   end
+
    
    --print(inspect(instrument))
    
@@ -189,64 +269,199 @@ function love.draw()
    
    renderBrowser(browser, 40, screenH - (20 * 20) - 20)
 
-   if renderSoundData then
-      renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
-   end
+   -- if renderSoundData then
+   --    renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
+   -- end
    
-   if playingSound then
-      renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
-   end
+   -- if playingSound then
+   --    renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
+   -- end
    
    if instrument then
       renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
    end
 
-   love.graphics.setColor(red[1],red[2],red[3])
-   love.graphics.setLineWidth(3)
-   if (instrument) then
-      renderEQ(instrument.sounds[1].eq, 240 +  40, screenH - (20 * 20))
-   end
+   -- love.graphics.setColor(red[1],red[2],red[3])
+   -- love.graphics.setLineWidth(3)
+   -- if (instrument) then
+   --    renderEQ(instrument.sounds[1].eq, 240 +  40, screenH - (20 * 20))
+   -- end
 
-   if (instrument) then
-      renderLabel('fade out', 280, 750)
-      knob = h_slider('fade out', 280 + 100, 750, 200, instrument.sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
-      if knob.value ~= nil then
-         instrument.sounds[1].eq.fadeout = knob.value
-         channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
-      end
+   -- if (instrument) then
+   --    renderLabel('fade out', 280, 750)
+   --    knob = h_slider('fade out', 280 + 100, 750, 200, instrument.sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
+   --    if knob.value ~= nil then
+   --       instrument.sounds[1].eq.fadeout = knob.value
+   --       channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
+   --    end
 
-      renderLabel('fade in', 280, 800)
-      knob = h_slider('fade in', 280 + 100, 800, 200, instrument.sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
-      if knob.value ~= nil then
-         instrument.sounds[1].eq.fadein = knob.value
-         channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
-      end
-   end
+   --    renderLabel('fade in', 280, 800)
+   --    knob = h_slider('fade in', 280 + 100, 800, 200, instrument.sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
+   --    if knob.value ~= nil then
+   --       instrument.sounds[1].eq.fadein = knob.value
+   --       channel.main2audio:push ( {eq = instrument.sounds[1].eq} )
+   --    end
+   -- end
    
-   love.graphics.setColor(red[1],red[2],red[3])
-   love.graphics.setLineWidth(3)
+   -- love.graphics.setColor(red[1],red[2],red[3])
+   -- love.graphics.setLineWidth(3)
 
-   if (instrument) then
-      renderInstrumentSettings(instrument, 660, 630)
-   end
+   -- if (instrument) then
+   --    renderInstrumentSettings(instrument, 660, 630)
+   -- end
 
 
    -- now trya n make the simple sequencer
+   
+  
+   -- renderLabel('bass drum', xOffset - getStringWidth('bass drum') + 20, 80+24)
+   -- renderLabel('mid conga', xOffset - getStringWidth('mid conga') + 20, 80+24+32)
+   -- --    getStringWidth(str)+10
 
-   for i = 1, 16 do
-      local str = i 
-      local strW = getStringWidth(str)
-      love.graphics.print(str, i*32  + (32-strW)/2, 80)
-      love.graphics.rectangle('line', i*32, 100, 32,32)
+   -- love.graphics.setColor(0.2, 0.2, 0.2)
+   -- for i = 1, 16 do
+   --    local str = i 
+   --    local strW = getStringWidth(str)
+   --    love.graphics.print(str, xOffset + i*32  + (32-strW)/2, 80)
+   --    love.graphics.rectangle('line', xOffset + i*32, 100, 32,32)
+   -- end
+   -- for i = 17, 32 do
+   --    local str = i - 16
+   --    local strW = getStringWidth(str)
+   --    love.graphics.print(str,xOffset + margin+ i*32  + (32-strW)/2, 80)
+   --    love.graphics.rectangle('line',xOffset + margin + i*32, 100, 32,32)
+   -- end
+
+   -- local xOffset = 300
+   -- local margin = 16
+   -- local names = {'Rhodes', 'Flute', 'Synth', 'Guitar', 'CR78'}
+   -- for i = 1, 5 do
+   --    love.graphics.setColor(1.0, 147/255, 95/255)
+   --    love.graphics.rectangle('fill',xOffset, margin+(i-1)*150, 144,144)
+   --    renderLabel(names[i], xOffset+ 20 , margin+(i-1)*150 + 20)
+      
+   --    love.graphics.setColor(222/255, 147/255, 95/255)
+   --    love.graphics.rectangle('fill',xOffset+144, margin+(i-1)*150, screenW-xOffset-margin-144,144)
+   -- end
+   -- love.graphics.setColor(1,1,1)
+   -- for i = 1,#testNotes do
+   --    local n = testNotes[i]
+   --    love.graphics.rectangle('fill',xOffset + n.x, 300 + (144*2) - (n.key*2), n.length, 2)
+
+   -- end
+   
+   
+   --love.graphics.setColor(0.2, 0.2, 0.2)
+   --love.graphics.rectangle('line',xOffset, 300, screenW-xOffset-margin,144)
+   --if instrument then
+   --   print(inspect( instrument.sounds[1]))
+   --end
+   
+   if instrument then
+      
+      local s = instrument.sounds[1].sample
+      if s.loopStart and s.loopEnd then
+         love.graphics.setLineWidth(1)
+
+         renderWave(s.soundData,  lpUI.x, lpUI.y, 500, 300, s.loopStart, s.loopEnd)
+         renderWaveLoopConnection(s.soundData, lpUI.x, lpUI.y, 500, 300*2, s.loopStart, s.loopEnd )
+         renderLabel("start", lpUI.x-50 , lpUI.y - lpUI.height/2 - 70)
+         renderLabel(math.floor(instrument.sounds[1].sample.loopStart), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 70)
+         local sp = h_slider('startPos', lpUI.x , lpUI.y - lpUI.height/2 - 60, 500, s.loopStart, 1, s.soundData:getSampleCount( ))
+         if sp.value then
+            instrument.sounds[1].sample.loopStart = sp.value
+            if instrument.sounds[1].sample.loopStart >= instrument.sounds[1].sample.loopEnd then
+               instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd-1
+            end
+         end
+         renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
+          renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
+         local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
+         
+         if ep.value then
+            instrument.sounds[1].sample.loopEnd = ep.value
+            if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
+               instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
+            end
+         end
+         
+      end
    end
-   for i = 17, 32 do
-      local str = i - 16
-      local strW = getStringWidth(str)
-      love.graphics.print(str,16+ i*32  + (32-strW)/2, 80)
-      love.graphics.rectangle('line',16 + i*32, 100, 32,32)
+end
+
+function handleWavLoopZoom(dx, dy)
+   if instrument then
+      local s = instrument.sounds[1].sample
+      if s.loopStart and s.loopEnd then 
+         local x, y = love.mouse.getPosition( )
+         local count = s.soundData:getSampleCount( )
+
+         if x > lpUI.x  and x < lpUI.x + lpUI.width then
+            if y > lpUI.y - lpUI.height/2 and y <  lpUI.y + lpUI.height/2 then
+
+               local rangeNow = (s.loopEnd - s.loopStart)
+               local sample1 = mapInto(x, lpUI.x, lpUI.x + lpUI.width,  s.loopStart,  s.loopEnd)
+               local rangeAfter = nil
+               if (dy > 0) then -- zoom in
+                  rangeAfter = math.floor(rangeNow * 0.9)
+               end
+               if (dy < 0) then -- zoom in
+                  rangeAfter = math.floor(rangeNow * 1.1)
+               end
+               local rangeDiff = rangeNow - rangeAfter
+               instrument.sounds[1].sample.loopStart = s.loopStart + rangeDiff/2
+               instrument.sounds[1].sample.loopEnd = s.loopEnd - rangeDiff/2
+               local sample2 = mapInto(x, lpUI.x, lpUI.x + lpUI.width,  instrument.sounds[1].sample.loopStart, instrument.sounds[1].sample.loopEnd)
+               local sampleDiff = sample2 - sample1
+               instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopStart - sampleDiff
+               instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopEnd - sampleDiff
+
+               if instrument.sounds[1].sample.loopStart < 0 then
+                  instrument.sounds[1].sample.loopStart = 0
+               end
+               if instrument.sounds[1].sample.loopEnd > count-1 then
+                  instrument.sounds[1].sample.loopEnd = count-1
+               end
+               
+            end
+         end
+      end
    end
    
 end
+
+
+
+
+function renderWaveLoopConnection(data, xOff, yOff, width, height, startPos, endPos)
+   local count = data:getSampleCount( )
+   -- first draw the last 5 samples
+   love.graphics.setColor(1,0,0,0.5)
+   local lw = 4
+   love.graphics.setLineWidth(lw)
+
+   local range = 10
+   for i = 0, range do
+      local pos = endPos - range + i
+
+      if (pos >= 0 and pos <= count) then
+         local s = data:getSample(pos)
+         love.graphics.line(xOff+ width+20 +i* lw, yOff+((s * (height))), xOff+ width + 20 + i*lw, yOff)
+      end
+   end
+   love.graphics.setColor(0,1,0,0.5)
+   for i = 0, range do
+      local pos = startPos + i
+      if (pos >= 0 and pos < count) then
+         local s = data:getSample(pos)
+         love.graphics.line(xOff+ width + 20 + (lw*range) + (i+1)*lw, yOff+((s * (height))), xOff+ width+20 + (lw*range) + (i+1)*lw, yOff)
+      end
+   end
+   data:getSample(0)
+   data:getSample(count-1)
+   
+end
+
 
 
 function renderPlayingSoundBar(x,y, width, height)
