@@ -1,3 +1,121 @@
+ function getInstrumentName(path)
+      local str = path
+      local index = findLast(str, "/")+1
+      local name = string.sub(str, index)
+      name = string.gsub(name, ".wav", "")
+      name = string.gsub(name, ".WAV", "")
+      name = string.gsub(name, ".lua", "")
+      return name
+   end
+   function tapedeckButtons()
+      local back = imgbutton('back', ui.back, 200, 10, 48, 48)
+      if back.clicked then
+         lastTick = 0
+         timeData.bar = 1
+         timeData.beat = 1
+         channel.main2audio:push ( {stepBackTime=timeData} )
+         channel.main2audio:push ( {timeData=timeData} )
+      end
+      
+      local play = imgbutton('play',not isPlaying and ui.play or ui.stop, 200+54, 10, 48, 48)
+      if play.clicked then
+         isPlaying = not isPlaying
+         channel.main2audio:push ( {isPlaying=isPlaying} )
+      end
+      
+      imgbutton('record', ui.record, 200+108, 10, 48, 48, red)
+   end
+
+   function drawTempoUI(x,y, timeData)
+      --love.graphics.print('bpm: '..math.floor(timeData.tempo), x, y)
+      local bpm = v_slider('bpm', x, y+50, 310, timeData.tempo , 10, 300)
+      if bpm.value ~= nil then
+         timeData.tempo =  bpm.value
+         channel.main2audio:push ( {tempo=math.floor(timeData.tempo)} )
+      end
+
+   end
+
+
+ function drawBeatSignatureUI(x,y,w,h, timeData)
+      --love.graphics.print(timeData.signatureBeatPerBar, x, y)
+      local bpbmin = charButton('beatPerBarMin', "<", x-25, y, 16, 20)
+      if bpbmin.clicked then
+         timeData.signatureBeatPerBar = timeData.signatureBeatPerBar-1
+         if (timeData.signatureBeatPerBar < 1) then
+            timeData.signatureBeatPerBar = 1
+         end
+         channel.main2audio:push ( {signatureBeatPerBar=timeData.signatureBeatPerBar} )
+      end
+      
+      local bpbmax = charButton('beatPerBarMax', ">", x+w, y, 16, 20)
+      if bpbmax.clicked then
+         timeData.signatureBeatPerBar = timeData.signatureBeatPerBar+1
+         if (timeData.signatureBeatPerBar > 32) then
+            timeData.signatureBeatPerBar = 32
+         end
+         channel.main2audio:push ( {signatureBeatPerBar=timeData.signatureBeatPerBar} )
+      end
+      
+      --love.graphics.print(timeData.signatureUnit, x, y+30)
+      local unitmin = charButton('unitMin', "<", x-25, y+30, 16, 20)
+      if unitmin.clicked then
+         timeData.signatureUnit = timeData.signatureUnit/2
+         if timeData.signatureUnit < 1 then
+            timeData.signatureUnit = 1
+         end
+         channel.main2audio:push ( {signatureUnit=timeData.signatureUnit} )
+      end
+      
+      local unitmax = charButton('unitMax', ">", x+w, y+30, 16, 20)
+      if unitmax.clicked then
+         --{1,2,4,8,16,32}
+         timeData.signatureUnit = timeData.signatureUnit*2
+         if timeData.signatureUnit > 32 then
+            timeData.signatureUnit = 32
+         end
+         channel.main2audio:push ( {signatureUnit=timeData.signatureUnit} )
+      end
+   end
+
+
+function renderMeasureBarsInSomeRect(x,y,w,h, scale)
+   --local scale = canvasScale
+
+   local beatStep = (96/(timeData.signatureUnit/4))
+   local barStep = (96/(timeData.signatureUnit/4))*timeData.signatureBeatPerBar
+   
+   for i = 0, ((w/scale) / beatStep)-1 do
+      love.graphics.setColor(0,0,0,0.15)
+      if i % 2 == 0 then
+         love.graphics.setColor(0,0,0,0.07)
+      end
+      love.graphics.rectangle('fill', x+i*beatStep*scale,y, beatStep*scale,h)
+   end
+   
+   love.graphics.setColor(0,0,0)
+   
+   for i=0, w/scale, beatStep  do
+      love.graphics.line(x+(i*scale), y, x+(i*scale), y+10)
+      
+   end
+   for i=0, w/scale, barStep do
+      love.graphics.line(x+(i*scale), y, x+(i*scale), y+40)
+   end
+
+end
+
+
+
+function renderPlayHead(x,y,w,h,tick, scale)
+     -- print(lastTick)
+      --mapInto(lastTick, 0, w)
+      if lastTick then
+         local xOff = mapInto(tick, 0, w, 0, w*scale)
+         love.graphics.line(x+xOff, y, x+xOff, y+h)
+      end
+   end
+
 
 function drawRectangle(x,y,w,h, alpha, fill, out)
    love.graphics.setColor(fill[1], fill[2], fill[3], alpha)

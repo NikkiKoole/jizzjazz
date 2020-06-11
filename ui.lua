@@ -19,6 +19,89 @@ function pointInCircle(x,y, cx, cy, radius)
       return false
    end
 end
+
+
+function getMouseWheelableArea(id, x,y, w, h)
+   local mx, my = love.mouse:getPosition()
+  -- print(inspect(love.mouse))
+end
+
+
+function getUIRect(id, x,y,w,h)
+  local result = false
+  if mouseState.click then
+     local mx, my = love.mouse.getPosition( )
+     if pointInRect(mx,my,x,y,w,h) then
+        result = true
+     end
+   end
+  
+   return {
+      clicked=result
+   }
+end
+
+
+function charButton(id , char, x, y, w, h)
+   --local buttonWidth = 90
+   --local cellHeight = 32
+   local result = false
+   love.graphics.setColor(0,0,0)
+   love.graphics.rectangle('fill',x,y,w,h)
+   love.graphics.setColor(1,1,1)
+
+   love.graphics.print(char, x, y)
+  
+
+   if mouseState.click then
+      local mx, my = love.mouse.getPosition( )
+      if pointInRect(mx,my,x,y,w,h) then
+         result = true
+      end
+   end
+
+   return {
+      clicked=result
+   }
+end
+
+
+function imgbutton(id, img, x, y, w, h, color)
+   scale = scale or 1
+   color = color or {1,1,1}
+   local mx, my = love.mouse:getPosition()
+
+   
+   local imgW, imgH = img:getDimensions()
+   local imgScaleX = w/imgW
+   local imgScaleY = h/imgH
+
+   local clicked = false
+
+   love.graphics.setColor(0,0,0,.75)
+   love.graphics.rectangle("fill", x, y, w, h)
+  
+
+   if (pointInRect(mx, my, x,y,w, h ) )then
+      mouseState.hoveredSomething = true
+   --    love.graphics.setColor(1,1,1,.5)
+   --    love.mouse.setCursor(cursors.hand)
+       if (mouseState.click) then
+          clicked = true
+       end
+   -- else
+   --    love.graphics.setColor(1,1,1, .3)
+   end
+ 
+
+   love.graphics.setColor(color[1], color[2], color[3])
+   love.graphics.draw(img, x, y, 0, imgScaleX, imgScaleY)
+
+   return {
+      clicked = clicked
+   }
+end
+
 function draw_button(x,y,p, run)
    local result= false
    if not p then

@@ -6,10 +6,20 @@ require 'instrument'
 require 'fileBrowser'
 local thread -- Our thread object.
 
+function findLast(haystack, needle)
+   local i=haystack:match(".*"..needle.."()")
+   if i==nil then return nil else return i-1 end
+end
+
 function love.keypressed(key)
    if key == 'escape' then
       channel.main2audio:push ( "quit" );
    end
+   if key == 'space' then
+      isPlaying = not isPlaying
+      channel.main2audio:push ( {isPlaying=isPlaying} )
+   end
+   
    if  lpUI.enabed and instrument then
       local down = love.keyboard.isDown( 'lshift' )
       local multiplier = 1
@@ -75,23 +85,53 @@ end
 
 function love.wheelmoved(a,b)
    --handleMusicBarWheelMoved(musicBar, a,b)
-   handleFileBrowserWheelMoved(browser, a,b)
-   handleWavLoopZoom(a,b)
+   --handleFileBrowserWheelMoved(browser, a,b)
+   --handleWavLoopZoom(a,b)
+
+
+   local mx, my = love.mouse:getPosition()
+   if mx > canvasX and mx < canvasX+canvasWidth then
+      if my > canvasY and my < canvasY+canvasHeight then
+         if b > 0 then
+            canvasScale = canvasScale * 2.0
+         else
+            canvasScale = canvasScale * 0.5
+         end
+         if canvasScale < 0.03125 then
+            canvasScale = 0.03125
+         end
+      end
+      
+   end
 end
 
 
 function love.update(dt)
    local error = thread:getError()
    assert( not error, error )
-   local v = channel.audio2main:pop ();
+   local v = channel.audio2main:pop ()
    if v then
       if v == 'quit' then
          love.event.quit()
       end
+      if v.timeData then
+         timeData = v.timeData
+      end
+      if v.tick then
+         lastTick = v.tick
+         if v.tick == 1 then
+            --print('tick', v.tick)
+
+         end
+         
+      end
+      
+      
       if v.playSemitone then
          local names = {'C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'}
          local number = math.floor(v.playSemitone / 12)
          lastHitNote =  names[(v.playSemitone % 12)+1]..number
+         lastHitSemitone = v.playSemitone
       end
       --if v.soundData then
       --   activeSoundData = v.soundData
@@ -138,8 +178,20 @@ function love.mousereleased(x,y)
    dragging = false
    love.mouse.setCursor(cursors.arrow)
 
-   browser = handleBrowserClick(browser, x,y)
+   if handleBrowserClick(browser, x,y) then
+      browser = fileBrowser(browser.root, browser.subdirs,
+                                browser.allowedExtensions,
+                                browser.kind)
+   end
 
+   --if handleBrowserClick(instrumentBrowser, x,y) then
+      -- instrumentBrowser = fileBrowser(browser.root, browser.subdirs,
+      --                           browser.allowedExtensions,
+      --                           browser.kind)
+   --end
+   
+   --print(inspect(instrumentBrowser), 'poep!')
+   --instrumentBrowser = handleBrowserClick(instrumentBrowser, x,y)
    if lastDraggedElement then
       if lastDraggedElement.id == 'startPos' or lastDraggedElement.id == 'endPos' then
          channel.main2audio:push( {instrumentStartEnd=instrument} );
@@ -169,18 +221,35 @@ function love.load()
               arrow=love.mouse.getSystemCursor("arrow"),
               sizewe = love.mouse.getSystemCursor("sizewe")}
    dragging = false
-   --font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 48)
+   fontLarge = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 48)
+   fontMiddle = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 32)
    font = love.graphics.newFont( "resources/fonts/WindsorBT-Roman.otf", 16)
    --font = love.graphics.newFont( "resources/fonts/Impact Label.ttf", 15)
    love.graphics.setFont(font)
+
+    ui = {
+      back = love.graphics.newImage("resources/icons/back.png"),
+      play = love.graphics.newImage("resources/icons/play.png"),
+      pause = love.graphics.newImage("resources/icons/pause.png"),
+      loop = love.graphics.newImage("resources/icons/loop.png"),
+      record = love.graphics.newImage("resources/icons/record.png"),
+      rewind = love.graphics.newImage("resources/icons/rewind.png"),
+      stop = love.graphics.newImage("resources/icons/stop.png"),
+      metronome = love.graphics.newImage("resources/icons/metronome.png")
+    }
    
    musicBar = createMusicBar()
 
    
-   browser = fileBrowser("assets", {"oscillators"}, {"wav", "WAV"})
+   browser = fileBrowser("assets", {}, {"wav", "WAV", "lua"})
+
+   --instrumentBrowser = fileBrowser("assets/instruments", {}, {"lua"}, 'instrument')
+
    
    lastClickedFile = nil
    lastHitNote = nil
+   lastHitSemitone = nil
+
    --activeSoundData = nil
 
    red = {0.52, 0, 0.03}
@@ -221,13 +290,33 @@ function love.load()
       testNotes[i] = {key=math.floor(math.random()*144), length=math.ceil(math.random()*4), x=math.ceil(math.random()*600)}
    end
 
+   -- you place instruments here
+   channels = {
+      
+
+   }
+
+
    
+   timeData = {bar=1, beat=1, tempo=100,
+               signatureBeatPerBar=4,
+               signatureUnit=4,}
+   isPlaying = false
    --print(inspect(instrument))
    
 
-   --channel.main2audio:push( {instrument=instrument} );
+   channel.main2audio:push( {timeData=timeData} );
    --pus
    --print(inspect(browser))
+
+   topBarHeight = 96
+   margin = 32
+   instrWidth = 200
+   canvasScale = .25
+   canvasX = instrWidth + margin
+   canvasY = topBarHeight + margin
+   canvasWidth = 144 -- will be overrtiiten inloop
+   canvasHeight = 144
 
 end
 
@@ -249,7 +338,9 @@ end
 
 
 function love.draw()
+   love.graphics.setFont(font)
    local screenW, screenH = love.graphics.getDimensions()
+   canvasWidth = screenW - instrWidth - margin*2
    handleMouseClickStart()
    love.graphics.clear(0.93, 0.89, 0.74)
 
@@ -266,9 +357,93 @@ function love.draw()
    if lastHitNote then
       love.graphics.print(lastHitNote, 50, 10)
    end
+   if lastHitSemitone then
+      love.graphics.print(lastHitSemitone, 100, 10)
+   end
    
-   renderBrowser(browser, 40, screenH - (20 * 20) - 20)
+   
+ 
 
+   getMouseWheelableArea('mw', canvasX,canvasY, canvasW, canvasHeight)
+   
+   renderBrowser(browser, margin, topBarHeight + margin + canvasHeight, instrWidth, screenH - (topBarHeight + 20))
+
+   
+   love.graphics.setColor(0,0,0)
+   love.graphics.rectangle("line", margin , topBarHeight + margin, instrWidth, 144)
+ 
+   
+   renderMeasureBarsInSomeRect(canvasX, canvasY, canvasWidth, canvasHeight, canvasScale)
+
+   renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
+ 
+   love.graphics.setColor(0,0,0)
+   
+   
+   if instrument then
+      --print(instrument.sounds[1].sample.path)
+      local name = getInstrumentName(instrument.sounds[1].sample.path)
+      renderLabel(name, margin,  topBarHeight + margin)
+      
+   end
+   
+   tapedeckButtons()
+   
+
+   love.graphics.setFont(fontLarge)
+
+   local beatString = string.format("%02d", timeData.bar).."."..string.format("%02d", timeData.beat)
+   --()
+   local ww = fontLarge:getWidth(beatString)
+   love.graphics.setColor(0,0,0, .75)
+   love.graphics.rectangle('fill', 460 - 10, 10, ww + 20, 48)
+   love.graphics.setColor(1,1,1)
+   love.graphics.print(beatString, 460, 10-5)
+
+   imgbutton('metronome', ui.metronome, 800, 10, 24, 24)
+   
+  
+   love.graphics.setLineWidth(3)
+   love.graphics.setFont(fontMiddle)
+   love.graphics.setColor(0,0,0)
+   love.graphics.print(timeData.signatureBeatPerBar, 740 - fontMiddle:getWidth(timeData.signatureBeatPerBar), 5)
+   love.graphics.print(timeData.signatureUnit, 740, 30)
+   --love.graphics.rectangle('line', 710, 10, 64, 54)
+   love.graphics.line(740+20, 15, 740-20, 64)
+
+   
+   love.graphics.print(math.floor(timeData.tempo), 900, 20)
+   local bpm =  getUIRect( 'bpm_flip',900, 20, 64, 32)
+   if bpm.clicked then
+      showBPM = not showBPM
+   end
+   if showBPM then
+      drawTempoUI(900,10, timeData)
+   end
+   
+   
+   --love.graphics.rectangle('line', 900, 20, 64, 32)
+   local signature =  getUIRect( 'signature', 710, 10, 64, 54)
+   if signature.clicked then
+      showSignatureUI = not showSignatureUI
+      
+   end
+
+   
+   
+
+   love.graphics.setFont(font)
+   if showSignatureUI then
+      drawBeatSignatureUI(710,10, 64, 54, timeData)
+   end
+   love.graphics.setColor(0,0,0)
+   
+  
+   
+   --draw_label_button(200,15, 'play')
+   
+   --renderBrowser(instrumentBrowser, 40, 200)
+   
    -- if renderSoundData then
    --    renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
    -- end
@@ -277,9 +452,9 @@ function love.draw()
    --    renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
    -- end
    
-   if instrument then
-      renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
-   end
+   --if instrument then
+   --   renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
+   --end
 
    -- love.graphics.setColor(red[1],red[2],red[3])
    -- love.graphics.setLineWidth(3)
@@ -357,36 +532,36 @@ function love.draw()
    --   print(inspect( instrument.sounds[1]))
    --end
    
-   if instrument then
+   -- if instrument then
       
-      local s = instrument.sounds[1].sample
-      if s.loopStart and s.loopEnd then
-         love.graphics.setLineWidth(1)
+   --    local s = instrument.sounds[1].sample
+   --    if s.loopStart and s.loopEnd then
+   --       love.graphics.setLineWidth(1)
 
-         renderWave(s.soundData,  lpUI.x, lpUI.y, 500, 300, s.loopStart, s.loopEnd)
-         renderWaveLoopConnection(s.soundData, lpUI.x, lpUI.y, 500, 300*2, s.loopStart, s.loopEnd )
-         renderLabel("start", lpUI.x-50 , lpUI.y - lpUI.height/2 - 70)
-         renderLabel(math.floor(instrument.sounds[1].sample.loopStart), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 70)
-         local sp = h_slider('startPos', lpUI.x , lpUI.y - lpUI.height/2 - 60, 500, s.loopStart, 1, s.soundData:getSampleCount( ))
-         if sp.value then
-            instrument.sounds[1].sample.loopStart = sp.value
-            if instrument.sounds[1].sample.loopStart >= instrument.sounds[1].sample.loopEnd then
-               instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd-1
-            end
-         end
-         renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
-          renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
-         local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
+   --       renderWave(s.soundData,  lpUI.x, lpUI.y, 500, 300, s.loopStart, s.loopEnd)
+   --       renderWaveLoopConnection(s.soundData, lpUI.x, lpUI.y, 500, 300*2, s.loopStart, s.loopEnd )
+   --       renderLabel("start", lpUI.x-50 , lpUI.y - lpUI.height/2 - 70)
+   --       renderLabel(math.floor(instrument.sounds[1].sample.loopStart), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 70)
+   --       local sp = h_slider('startPos', lpUI.x , lpUI.y - lpUI.height/2 - 60, 500, s.loopStart, 1, s.soundData:getSampleCount( ))
+   --       if sp.value then
+   --          instrument.sounds[1].sample.loopStart = sp.value
+   --          if instrument.sounds[1].sample.loopStart >= instrument.sounds[1].sample.loopEnd then
+   --             instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd-1
+   --          end
+   --       end
+   --       renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
+   --        renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
+   --       local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
          
-         if ep.value then
-            instrument.sounds[1].sample.loopEnd = ep.value
-            if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
-               instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
-            end
-         end
+   --       if ep.value then
+   --          instrument.sounds[1].sample.loopEnd = ep.value
+   --          if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
+   --             instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
+   --          end
+   --       end
          
-      end
-   end
+   --    end
+   -- end
 end
 
 function handleWavLoopZoom(dx, dy)

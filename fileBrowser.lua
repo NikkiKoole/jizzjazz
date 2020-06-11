@@ -18,14 +18,16 @@ end
 
 function handleFileBrowserWheelMoved(browser, a,b)
    browser.scrollTop = browser.scrollTop + b
-   if browser.scrollTop > #browser.all - 20 then
-      browser.scrollTop = #browser.all - 20
+   
+   if browser.scrollTop > #browser.all - (browser.amount or 10) then
+      browser.scrollTop = #browser.all - (browser.amount or 10)
    end
    if browser.scrollTop < 0 then browser.scrollTop = 0 end
+   browser.scrollTop = math.floor(browser.scrollTop)
 end
 
 
-function fileBrowser(rootPath, subdirs, allowedExtensions, allowedToUseFolders)
+function fileBrowser(rootPath, subdirs, allowedExtensions)
    local path = createFilePath(rootPath, subdirs)
    local all = love.filesystem.getDirectoryItems(path);
    local files={}
@@ -66,45 +68,54 @@ end
 
 
 
-function renderBrowser(browser, x, y)
+function renderBrowser(browser, x, y, w, h)
    --if not browser then return end
    local runningX, runningY
+
    browser.x = x
    browser.y = y
+   --browser.h = h
    --runningX = 20
    runningY = browser.y
-
-   local buttonWidth = 200
+   local buttonWidth = w
    local buttonHeight = 20
-   for i=1+browser.scrollTop, math.min(#browser.all, browser.scrollTop+20)  do
+   local amount = h/buttonHeight
+   browser.amount = amount
+   
+   for i=1+browser.scrollTop, math.min(#browser.all, browser.scrollTop+amount)  do
       local thing =  browser.all[i]
-
-      if thing.type == 'directory' then
-         love.graphics.setColor(red[1],red[2],red[3], 0.2)
-         love.graphics.rectangle('fill', x, runningY, buttonWidth, buttonHeight)
-         love.graphics.setColor(1,1,1)
-         love.graphics.print(thing.path, x, runningY )
-      else
-         local filename = thing.path
-         if browser.allowedExtensions then
-            for j = 1, #browser.allowedExtensions do
-               filename = string.gsub(filename, '.'..browser.allowedExtensions[j], '')
-            end
-         end
-         if (browser.lastClickedFile and  browser.lastClickedFile == thing.path) then
-            love.graphics.setColor(.5,.1,.1)
+      --if thing then 
+         if thing.type == 'directory' then
+            love.graphics.setColor(red[1],red[2],red[3], 0.2)
+            love.graphics.rectangle('fill', x, runningY, buttonWidth, buttonHeight)
+            love.graphics.setColor(1,1,1)
+            love.graphics.print(thing.path, x, runningY )
          else
-            love.graphics.setColor(0,0,0)
+            local filename = thing.path
+            if browser.allowedExtensions then
+               for j = 1, #browser.allowedExtensions do
+                  filename = string.gsub(filename, '.'..browser.allowedExtensions[j], '')
+               end
+            end
+            if (browser.lastClickedFile and  browser.lastClickedFile == thing.path) then
+               love.graphics.setColor(.5,.1,.1)
+            else
+               love.graphics.setColor(0,0,0)
+            end
+            
+            love.graphics.print(filename, x, runningY )
          end
-         
-         love.graphics.print(filename, x, runningY )
-      end
+      --end
       runningY = runningY + buttonHeight
    end
 end
 
+function ends_with(str, ending)
+   return ending == "" or str:sub(-#ending) == ending
+end
 
 function handleBrowserClick(browser,x,y)
+   local result = false
    if x> browser.x and x < browser.x+200 and y > browser.y then
       local index = math.floor((y-browser.y)/20) + 1
       index = index + browser.scrollTop
@@ -119,18 +130,30 @@ function handleBrowserClick(browser,x,y)
          else
             table.insert(browser.subdirs, thing.path)
          end
-         
-         browser = fileBrowser(browser.root, browser.subdirs,
-                               browser.allowedExtensions,
-                               browser.allowedToUseFolders)
+         result = true
+        
       elseif thing.type == 'file' then
          local path = createFilePath(browser.root, browser.subdirs)
          if thing.path then
-             browser.lastClickedFile = thing.path
-             channel.main2audio:push({osc= path..'/'..thing.path})
+            browser.lastClickedFile = thing.path
+            if ends_with(thing.path, 'wav') or ends_with(thing.path, 'WAV') then
+            --if browser.kind == 'wav' then
+               channel.main2audio:push({osc= path..'/'..thing.path})
+            end
+            if ends_with(thing.path, 'lua') then
+            --if browser.kind == 'instrument' then
+               contents, size = love.filesystem.read( path..'/'..thing.path )
+               local instr = (loadstring(contents)())
+--               print(inspect(instr))
+               channel.main2audio:push({loadInstrument=instr})
+
+            end
+            
+            
          end
       end
 
    end
-   return browser
+
+   return result
 end
