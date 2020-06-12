@@ -114,6 +114,11 @@ function love.update(dt)
       if v == 'quit' then
          love.event.quit()
       end
+      if v.activeSources then
+         activeSources = v.activeSources
+         --print('active sources:', #v.activeSources)
+      end
+      
       if v.timeData then
          timeData = v.timeData
       end
@@ -311,7 +316,7 @@ function love.load()
 
    topBarHeight = 96
    margin = 32
-   instrWidth = 200
+   instrWidth = 240
    canvasScale = .25
    canvasX = instrWidth + margin
    canvasY = topBarHeight + margin
@@ -376,7 +381,56 @@ function love.draw()
    renderMeasureBarsInSomeRect(canvasX, canvasY, canvasWidth, canvasHeight, canvasScale)
 
    renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
- 
+
+
+   function isInTable(value, tab)
+      for i,v in pairs(tab) do
+         if value == v then return true end
+      end
+      return false
+   end
+   
+
+   function renderVerticalPianoRoll(startX, startY, width, height)
+      local startKey = 36 -- this is a C4
+      local octaves = 5
+      local whites = {0,2,4,5,7,9,11}
+
+      
+      for i=0, (12 * octaves)-1 do
+         local color = {0,0,0}
+
+         if isInTable((i%12), whites) then
+            color = {1,1,1}
+         end
+
+         love.graphics.setColor(0,0,0)
+         love.graphics.rectangle("line", startX, startY+height -(i*10), width, 10)
+
+         love.graphics.setColor(color[1], color[2], color[3])
+
+         if activeSources then
+            for j=1, #activeSources do
+              
+               if activeSources[j].key ==  i + startKey then
+                  love.graphics.setColor(red[1], red[2], red[3])
+                  if activeSources[j].released==true then
+                     love.graphics.setColor(0.5,0.5,0.5)
+                  end
+               end
+              
+               
+            end
+         end
+         
+         
+         love.graphics.rectangle("fill", startX, startY+height -(i*10), width, 10)
+      end
+   end
+   
+   
+   renderVerticalPianoRoll(canvasX-30, canvasY+500, 30, canvasHeight)
+   
    love.graphics.setColor(0,0,0)
    
    
@@ -434,7 +488,22 @@ function love.draw()
 
    love.graphics.setFont(font)
    if showSignatureUI then
-      drawBeatSignatureUI(710,10, 64, 54, timeData)
+      local changed = drawBeatSignatureUI(710,10, 64, 54, timeData)
+      
+      if changed then
+         -- the signature has changed
+         -- bar and beat need recalculating
+         --print(lastTick)
+         local ticksPerUnit = 96 / (timeData.signatureUnit/4)
+         local newBeat = lastTick / ticksPerUnit
+         newBeat = math.ceil(newBeat)
+         local newBar = math.ceil(lastTick / (ticksPerUnit * timeData.signatureBeatPerBar))
+         
+         timeData.beat = newBeat %  timeData.signatureBeatPerBar
+         timeData.bar = newBar
+         channel.main2audio:push ( {timeData=timeData} )
+      end
+      
    end
    love.graphics.setColor(0,0,0)
    

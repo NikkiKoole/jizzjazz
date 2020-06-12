@@ -38,14 +38,15 @@
 
 
  function drawBeatSignatureUI(x,y,w,h, timeData)
-      --love.graphics.print(timeData.signatureBeatPerBar, x, y)
+    --love.graphics.print(timeData.signatureBeatPerBar, x, y)
+    local dirty = false
       local bpbmin = charButton('beatPerBarMin', "<", x-25, y, 16, 20)
       if bpbmin.clicked then
          timeData.signatureBeatPerBar = timeData.signatureBeatPerBar-1
          if (timeData.signatureBeatPerBar < 1) then
             timeData.signatureBeatPerBar = 1
          end
-         channel.main2audio:push ( {signatureBeatPerBar=timeData.signatureBeatPerBar} )
+         dirty = true
       end
       
       local bpbmax = charButton('beatPerBarMax', ">", x+w, y, 16, 20)
@@ -54,7 +55,7 @@
          if (timeData.signatureBeatPerBar > 32) then
             timeData.signatureBeatPerBar = 32
          end
-         channel.main2audio:push ( {signatureBeatPerBar=timeData.signatureBeatPerBar} )
+         dirty = true
       end
       
       --love.graphics.print(timeData.signatureUnit, x, y+30)
@@ -64,7 +65,7 @@
          if timeData.signatureUnit < 1 then
             timeData.signatureUnit = 1
          end
-         channel.main2audio:push ( {signatureUnit=timeData.signatureUnit} )
+         dirty = true
       end
       
       local unitmax = charButton('unitMax', ">", x+w, y+30, 16, 20)
@@ -74,10 +75,12 @@
          if timeData.signatureUnit > 32 then
             timeData.signatureUnit = 32
          end
-         channel.main2audio:push ( {signatureUnit=timeData.signatureUnit} )
+         dirty = true
       end
-   end
 
+      return dirty
+   end
+ 
 
 function renderMeasureBarsInSomeRect(x,y,w,h, scale)
    --local scale = canvasScale

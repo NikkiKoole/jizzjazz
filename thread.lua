@@ -82,7 +82,7 @@ local vanillaEq = {
 }
 
 function loadAndFillInstrument()
-   print(inspect(instrument))
+
    for i =1 , #instrument.sounds do
       local s = love.sound.newSoundData( instrument.sounds[i].sample.path )
 
@@ -124,7 +124,7 @@ function loadAndFillInstrument()
    
    love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
    love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
-   print(inspect(instrument))
+
 end
 
 
@@ -247,6 +247,7 @@ function playNote(semitone, velocity, instrument)
             love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=activeSources[index]})
          end
       end
+      
 
    else
       local s2
@@ -292,6 +293,7 @@ function playNote(semitone, velocity, instrument)
 
       table.insert(activeSources, s)
    end
+   love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
 end
 
 function stopNote(semitone)
@@ -416,24 +418,24 @@ end
 function handleThreadInput()
    local v = channel.main2audio:pop();
    if v then
-      if v.signatureBeatPerBar then
-         timeData.signatureBeatPerBar = v.signatureBeatPerBar
+      -- if v.signatureBeatPerBar then
+      --    timeData.signatureBeatPerBar = v.signatureBeatPerBar
          
-         local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
-         local newBeat = lastTick / ticksPerUnit
-         timeData.beat  = newBeat % timeData.signatureBeatPerBar
-         timeData.bar = newBeat / timeData.signatureBeatPerBar
-         love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
-      end
-      if v.signatureUnit then
-         timeData.signatureUnit = v.signatureUnit
-         -- now we also want to change the current beat and bar i blieve
-         local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
-         local newBeat = lastTick / ticksPerUnit
-         timeData.beat  = newBeat % timeData.signatureBeatPerBar
-         timeData.bar = newBeat / timeData.signatureBeatPerBar
-         love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
-      end
+      --    local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
+      --    local newBeat = lastTick / ticksPerUnit
+      --    timeData.beat  = (newBeat % timeData.signatureBeatPerBar) + 1
+      --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
+      --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
+      -- end
+      -- if v.signatureUnit then
+      --    timeData.signatureUnit = v.signatureUnit
+      --    -- now we also want to change the current beat and bar i blieve
+      --    local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
+      --    local newBeat = lastTick / ticksPerUnit
+      --    timeData.beat  = (newBeat % timeData.signatureBeatPerBar) + 1
+      --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
+      --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
+      -- end
       
       if v.isPlaying ~= nil then
          isPlaying = v.isPlaying
@@ -689,15 +691,21 @@ while(run ) do
       
    end
 
+   local hasRemovedOne = false
    for i = #activeSources, 1, -1 do
       if activeSources[i].remove then
          --activeSources[i].remove = activeSources[i].remove -1
          --if activeSources[i].remove <= 0 then
          activeSources[i].sound:stop()
          table.remove(activeSources, i)
+         hasRemovedOne = true
          --end
       end
    end
+   if hasRemovedOne then
+       love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
+   end
+   
    
    for i = #activeSources, 1, -1 do
       if activeSources[i].released == true then
