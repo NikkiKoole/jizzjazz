@@ -19,7 +19,7 @@ local timeSinceStartPlay = 0
 
 local recordingNotes = {}
 local notes = {}
-
+local triggeredPlayNotes = {}
 
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 metronomeBeat:setVolume(0.5)
@@ -384,6 +384,48 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
    return volume
 end
 
+function recordPlayedNote(b, c)
+   recordingNotes[b] = {semitone=b,
+                        velocity=c,
+                        tick=math.ceil(lastTick)}
+end
+
+function recordStoppedNote(b)
+   local me = recordingNotes[b]
+
+   
+   if me then
+      local tick =  math.ceil(lastTick)
+      local current = notes[me.tick]
+
+      local node = {key=me.semitone,
+                    velocity=me.velocity,
+                    length=tick - me.tick,
+                    startTick=me.tick }
+      if current ~= nil then
+         --print('adding another one rigt here!', me.tick, notes[me.tick])
+         table.insert(notes[me.tick], node)
+      else
+         current = {node}
+         notes[me.tick] = current
+      end
+
+      -- add the stop
+     -- local currentStop = notes[tick]
+     -- if currentStop ~= nil then
+     --    table.insert(notes[tick], {stop=true, key=me.semitone, startTick=me.tick})
+     -- else
+     --    notes[tick] = {{stop=true, key=me.semitone, startTick=me.tick}}
+     -- end
+      
+      recordingNotes[b] = nil
+      love.thread.getChannel( 'audio2main' ):push({notes=notes})
+
+      --print(semitone, 'recordingNotes', inspect(recordingNotes))
+   end
+end
+
+
 function handleMIDIInput()
    if luamidi and luamidi.getinportcount() > 0 then
       --print('yo')
@@ -402,52 +444,12 @@ function handleMIDIInput()
             --print('midi message play', b)
             playNote(b, c, instrument)
             if isPlaying and isRecording then
-               recordingNotes[b] = {semitone=b,
-                                           velocity=c,
-                                           tick=math.ceil(lastTick)}
+               recordPlayedNote(b, c)
             end
          elseif a == 128 then
             stopNote(b)
             if isPlaying and isRecording then
-               local me = recordingNotes[b]
-               if me then
-                  local tick =  math.ceil(lastTick)
-                  local current = notes[me.tick]
-                  if current ~= nil then
-                     --print('adding another one rigt here!', me.tick, notes[me.tick])
-                     table.insert(notes[me.tick],
-                                  {key=me.semitone,
-                                   velocity=me.velocity,
-                                   length=tick - me.tick,
-                                   startTick=me.tick  })
-                     
-
-                  else
-                     current = {{key=me.semitone,
-                                 velocity=me.velocity,
-                                 length=tick - me.tick,
-                                 startTick=me.tick}}
-
-
-                     notes[me.tick] = current
-                  end
-
-                  -- add the stop
-                  local currentStop = notes[tick]
-                  if currentStop ~= nil then
-                     table.insert(notes[tick], {stop=true, key=me.semitone, startTick=me.tick})
-                  else
-                      notes[tick] = {{stop=true, key=me.semitone, startTick=me.tick}}
-                  end
-                  
-                 
-                  
-                  --print('duration:', math.ceil(lastTick) -  me.tick)
-                  recordingNotes[b] = nil
-                  love.thread.getChannel( 'audio2main' ):push({notes=notes})
-
-                  --print(semitone, 'recordingNotes', inspect(recordingNotes))
-               end
+               recordStoppedNote(b)
                
             end
          elseif a == 176 then
@@ -476,7 +478,7 @@ function handleThreadInput()
    if v then
       -- if v.signatureBeatPerBar then
       --    timeData.signatureBeatPerBar = v.signatureBeatPerBar
-         
+      
       --    local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
       --    local newBeat = lastTick / ticksPerUnit
       --    timeData.beat  = (newBeat % timeData.signatureBeatPerBar) + 1
@@ -492,10 +494,10 @@ function handleThreadInput()
       --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
       --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
       -- end
-       if v.isRecording ~= nil then
-          isRecording = v.isRecording
-       end
-       
+      if v.isRecording ~= nil then
+         isRecording = v.isRecording
+      end
+      
       if v.isPlaying ~= nil then
          isPlaying = v.isPlaying
          now = love.timer.getTime()
@@ -762,7 +764,7 @@ while(run ) do
       end
    end
    if hasRemovedOne then
-       love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
+      love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
    end
    
    
@@ -798,7 +800,7 @@ while(run ) do
       local tickdelta = (delta * (timeData.tempo / 60) * 96)
       local tick = lastTick + tickdelta
       
-     
+      
       local unitsPerBar = timeData.signatureBeatPerBar 
       local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
 
@@ -810,15 +812,35 @@ while(run ) do
       if math.floor(tick) ~= math.floor(lastTick) then
          local wholeTick = math.ceil(tick)
 
+
+         for t = #triggeredPlayNotes, 1, -1 do
+            local p = triggeredPlayNotes[t]
+            if ((p.startTick + p.length) == wholeTick) then
+               --print(p.startTick,p.length,wholeTick)
+               stopNote(p.key)
+               table.remove(triggeredPlayNotes, t)
+            end
+         end
+         
+         -- look in a cache of all the notes being pressed any of them have been released
+
+         --print(inspect(notes))
+         --for k,v in pairs(notes) do
+         --   print(k, inspect(v))
+         --end
+         
+
          if notes[wholeTick] ~= nil then
             --print(inspect(notes[wholeTick]))
             for i = 1, #notes[wholeTick] do
                local n = notes[wholeTick][i]
-               if not n.stop then
-                  playNote(n.key, n.velocity, instrument)
-               else
-                  stopNote(n.key)
-               end
+               --if not n.stop then
+               --print(lastTick, n.startTick, n.length)
+               playNote(n.key, n.velocity, instrument)
+               table.insert(triggeredPlayNotes, n)
+               --else
+               --   stopNote(n.key)
+               --end
                
                
             end
@@ -840,7 +862,7 @@ while(run ) do
                timeData.beat = 1
                timeData.bar = timeData.bar + 1
                pitch = 1.5
-              
+               
             end
             metronomeBeat:setPitch(pitch)
             metronomeBeat:play()
