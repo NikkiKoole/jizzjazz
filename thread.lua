@@ -296,13 +296,7 @@ function playNote(semitone, velocity, instrument)
 
       table.insert(activeSources, s)
    end
-   if isPlaying and isRecording then
-      recordingNotes[semitone] = {semitone=semitone,
-                                  velocity=velocity,
-                                  tick=math.ceil(lastTick)}
-      
-      --print('playnote', inspect(recordingNotes[semitone]))
-   end
+   
    love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
 
 end
@@ -310,36 +304,7 @@ end
 
 
 function stopNote(semitone)
-   if isPlaying and isRecording then
-      local me = recordingNotes[semitone]
-      if me then
-         local tick =  math.ceil(lastTick)
-         local current = notes[tick]
-         if current ~= nil then
-           -- print('??', inspect(current))
-            table.insert(notes[me.tick],
-                         {key=me.semitone,
-                          length=tick - me.tick,
-                          startTick=me.tick  })
-
-         else
-            current = {{key=me.semitone,
-                        length=tick - me.tick,
-                        startTick=me.tick}}
-           -- print('stop', inspect(current), me.tick)
-
-            notes[me.tick] = current
-         end
-         
-         
-         --print('duration:', math.ceil(lastTick) -  me.tick)
-         recordingNotes[semitone] = nil
-         love.thread.getChannel( 'audio2main' ):push({notes=notes})
-
-         --print(semitone, 'recordingNotes', inspect(recordingNotes))
-      end
-      
-   end
+   
 
    for i=1, #activeSources do
       if semitone == activeSources[i].key then
@@ -436,8 +401,46 @@ function handleMIDIInput()
          if a == 144 then
             --print('midi message play', b)
             playNote(b, c, instrument)
+            if isPlaying and isRecording then
+               recordingNotes[b] = {semitone=b,
+                                           velocity=c,
+                                           tick=math.ceil(lastTick)}
+            end
          elseif a == 128 then
             stopNote(b)
+            if isPlaying and isRecording then
+               local me = recordingNotes[b]
+               if me then
+                  local tick =  math.ceil(lastTick)
+                  local current = notes[me.tick]
+                  if current ~= nil then
+                     --print('adding another one rigt here!', me.tick, notes[me.tick])
+                     table.insert(notes[me.tick],
+                                  {key=me.semitone,
+                                   velocity=me.velocity,
+                                   length=tick - me.tick,
+                                   startTick=me.tick  })
+                     
+
+                  else
+                     current = {{key=me.semitone,
+                                 velocity=me.velocity,
+                                 length=tick - me.tick,
+                                 startTick=me.tick}}
+
+
+                     notes[me.tick] = current
+                  end
+                  
+                  
+                  --print('duration:', math.ceil(lastTick) -  me.tick)
+                  recordingNotes[b] = nil
+                  love.thread.getChannel( 'audio2main' ):push({notes=notes})
+
+                  --print(semitone, 'recordingNotes', inspect(recordingNotes))
+               end
+               
+            end
          elseif a == 176 then
             if b == 2 then
                instrument.settings.vibratoSpeed = 96/ math.max(c,1)
@@ -797,7 +800,21 @@ while(run ) do
 
       if math.floor(tick) ~= math.floor(lastTick) then
          local wholeTick = math.ceil(tick)
+
+         if notes[wholeTick] ~= nil then
+            --print(inspect(notes[wholeTick]))
+            for i = 1, #notes[wholeTick] do
+               local n = notes[wholeTick][i]
+               playNote(n.key, n.velocity, instrument)
+            end
+            
+         end
+         
          -- check our notes
+         --print(inspect(notes))
+         --if notes[wholetick] then
+         --   print('somehting is playing here!')
+         --end
          
          love.thread.getChannel( 'audio2main' ):push({tick=wholeTick})
          if wholeTick % ticksPerUnit == 0 then
