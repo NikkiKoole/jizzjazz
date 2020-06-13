@@ -463,12 +463,14 @@ function love.draw()
    --print(inspect(notes))
    for k,v in pairs(notes) do
       for t,vv in pairs(v) do
-         local x = canvasX + (k*canvasScale)
-
-         local y = canvasY + amount*10   - (vv.key-startKey)*10
-         local w = vv.length * canvasScale
-         local h = 10
-         love.graphics.rectangle("fill", x,y,w,h)
+         if not vv.stop then
+            local x = canvasX + (k*canvasScale)
+            
+            local y = canvasY + amount*10   - (vv.key-startKey)*10
+            local w = vv.length * canvasScale
+            local h = 10
+            love.graphics.rectangle("fill", x,y,w,h)
+         end
       end
    end
    

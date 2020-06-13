@@ -431,7 +431,16 @@ function handleMIDIInput()
 
                      notes[me.tick] = current
                   end
+
+                  -- add the stop
+                  local currentStop = notes[tick]
+                  if currentStop ~= nil then
+                     table.insert(notes[tick], {stop=true, key=me.semitone, startTick=me.tick})
+                  else
+                      notes[tick] = {{stop=true, key=me.semitone, startTick=me.tick}}
+                  end
                   
+                 
                   
                   --print('duration:', math.ceil(lastTick) -  me.tick)
                   recordingNotes[b] = nil
@@ -805,7 +814,13 @@ while(run ) do
             --print(inspect(notes[wholeTick]))
             for i = 1, #notes[wholeTick] do
                local n = notes[wholeTick][i]
-               playNote(n.key, n.velocity, instrument)
+               if not n.stop then
+                  playNote(n.key, n.velocity, instrument)
+               else
+                  stopNote(n.key)
+               end
+               
+               
             end
             
          end
