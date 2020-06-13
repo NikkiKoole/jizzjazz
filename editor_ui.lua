@@ -22,8 +22,14 @@
          isPlaying = not isPlaying
          channel.main2audio:push ( {isPlaying=isPlaying} )
       end
+
+      local rec = imgbutton('record', ui.record, 200+108, 10, 48, 48, isRecording and {1,0,0} or red)
+      if rec.clicked then
+         isRecording = not isRecording
+         channel.main2audio:push ( {isRecording=isRecording} )
+      end
       
-      imgbutton('record', ui.record, 200+108, 10, 48, 48, red)
+      
    end
 
    function drawTempoUI(x,y, timeData)

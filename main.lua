@@ -10,6 +10,12 @@ function findLast(haystack, needle)
    local i=haystack:match(".*"..needle.."()")
    if i==nil then return nil else return i-1 end
 end
+ function isInTable(value, tab)
+      for i,v in pairs(tab) do
+         if value == v then return true end
+      end
+      return false
+   end
 
 function love.keypressed(key)
    if key == 'escape' then
@@ -19,6 +25,10 @@ function love.keypressed(key)
       isPlaying = not isPlaying
       channel.main2audio:push ( {isPlaying=isPlaying} )
    end
+   if key == 'p' then
+      --pasteNoteNowUsingLastPressed()
+   end
+   
    
    if  lpUI.enabed and instrument then
       local down = love.keyboard.isDown( 'lshift' )
@@ -118,6 +128,9 @@ function love.update(dt)
          activeSources = v.activeSources
          --print('active sources:', #v.activeSources)
       end
+      if v.notes then
+         notes = v.notes
+      end
       
       if v.timeData then
          timeData = v.timeData
@@ -137,6 +150,7 @@ function love.update(dt)
          local number = math.floor(v.playSemitone / 12)
          lastHitNote =  names[(v.playSemitone % 12)+1]..number
          lastHitSemitone = v.playSemitone
+         --pasteNoteNowUsingLastPressed()
       end
       --if v.soundData then
       --   activeSoundData = v.soundData
@@ -213,7 +227,7 @@ end
 function love.mousemoved(x,y,dx,dy)
    --print(inspect(musicBar.dict))
    
-   handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
+   --handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
 end
 
 
@@ -243,7 +257,7 @@ function love.load()
       metronome = love.graphics.newImage("resources/icons/metronome.png")
     }
    
-   musicBar = createMusicBar()
+   --musicBar = createMusicBar()
 
    
    browser = fileBrowser("assets", {}, {"wav", "WAV", "lua"})
@@ -267,7 +281,7 @@ function love.load()
       offset = {x=0, y=0}
    }
 
-   --instrument = getDefaultInstrument()
+   
    renderSoundData = nil
    playingSound = nil
 
@@ -279,9 +293,12 @@ function love.load()
 
 
 
-   testNotes = {
+   notes = {
+      -- i want an index which is the lastTick can you have multiple notes starting at exact same index ?
+      
 
    }
+
 
    lpUI = {
       enabed = true,
@@ -291,22 +308,14 @@ function love.load()
       height = 300
    }
    
-   for i = 1, 200 do
-      testNotes[i] = {key=math.floor(math.random()*144), length=math.ceil(math.random()*4), x=math.ceil(math.random()*600)}
-   end
-
-   -- you place instruments here
-   channels = {
-      
-
-   }
-
+ 
 
    
    timeData = {bar=1, beat=1, tempo=100,
                signatureBeatPerBar=4,
                signatureUnit=4,}
    isPlaying = false
+   isRecording = false
    --print(inspect(instrument))
    
 
@@ -341,6 +350,22 @@ function round(num, numDecimalPlaces)
    return math.floor(num * mult + 0.5) / mult
 end
 
+function  pasteNoteNowUsingLastPressed()
+   if lastTick and lastHitSemitone then
+      local current = notes[lastTick]
+      if current then
+         table.insert(notes[lastTick], {key=lastHitSemitone, length=96, startTick=lastTick})
+         --print('foundsomethign already', inspect(current))
+      else
+         current = {{key=lastHitSemitone, length=96, startTick=lastTick}}
+         notes[lastTick] = current
+      end
+
+   else
+--      print(lastTick, lastHitSemitone)
+   end
+end
+
 
 function love.draw()
    love.graphics.setFont(font)
@@ -367,9 +392,9 @@ function love.draw()
    end
    
    
- 
 
-   getMouseWheelableArea('mw', canvasX,canvasY, canvasW, canvasHeight)
+
+   --getMouseWheelableArea('mw', canvasX,canvasY, canvasW, canvasHeight)
    
    renderBrowser(browser, margin, topBarHeight + margin + canvasHeight, instrWidth, screenH - (topBarHeight + 20))
 
@@ -383,21 +408,17 @@ function love.draw()
    renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
 
 
-   function isInTable(value, tab)
-      for i,v in pairs(tab) do
-         if value == v then return true end
-      end
-      return false
-   end
+  
    
 
-   function renderVerticalPianoRoll(startX, startY, width, height)
+   function renderVerticalPianoRoll(startX, startY, width)
       local startKey = 36 -- this is a C4
       local octaves = 5
       local whites = {0,2,4,5,7,9,11}
-
+      local amount = (12 * octaves)-1
       
-      for i=0, (12 * octaves)-1 do
+      --print((12 * octaves)-1)
+      for i=0, amount do
          local color = {0,0,0}
 
          if isInTable((i%12), whites) then
@@ -405,31 +426,52 @@ function love.draw()
          end
 
          love.graphics.setColor(0,0,0)
-         love.graphics.rectangle("line", startX, startY+height -(i*10), width, 10)
+
+         local y = startY+ amount*10 - (i*10)
+         love.graphics.rectangle("line", startX, y, width, 10)
 
          love.graphics.setColor(color[1], color[2], color[3])
 
          if activeSources then
             for j=1, #activeSources do
-              
                if activeSources[j].key ==  i + startKey then
                   love.graphics.setColor(red[1], red[2], red[3])
                   if activeSources[j].released==true then
                      love.graphics.setColor(0.5,0.5,0.5)
                   end
                end
-              
-               
             end
          end
          
-         
-         love.graphics.rectangle("fill", startX, startY+height -(i*10), width, 10)
+         love.graphics.rectangle("fill", startX, y, width, 10)
       end
    end
    
    
-   renderVerticalPianoRoll(canvasX-30, canvasY+500, 30, canvasHeight)
+   renderVerticalPianoRoll(canvasX-30, canvasY, 30)
+
+   love.graphics.setColor(0.5,0.5,0.5)
+   
+   --local beatStep = (96/(timeData.signatureUnit/4))
+   --local barStep = (96/(timeData.signatureUnit/4))*timeData.signatureBeatPerBar
+
+   -- canvasX, canvasY
+   local startKey = 36 -- this is a C4
+   local octaves = 5
+   local amount = (12 * octaves)-1
+   --print(amount)
+   --print(inspect(notes))
+   for k,v in pairs(notes) do
+      for t,vv in pairs(v) do
+         local x = canvasX + (k*canvasScale)
+
+         local y = canvasY + amount*10   - (vv.key-startKey)*10
+         local w = vv.length * canvasScale
+         local h = 10
+         love.graphics.rectangle("fill", x,y,w,h)
+      end
+   end
+   
    
    love.graphics.setColor(0,0,0)
    

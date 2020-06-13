@@ -17,6 +17,9 @@ local isPlaying = false
 local timeData = nil
 local timeSinceStartPlay = 0
 
+local recordingNotes = {}
+local notes = {}
+
 
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 metronomeBeat:setVolume(0.5)
@@ -293,10 +296,51 @@ function playNote(semitone, velocity, instrument)
 
       table.insert(activeSources, s)
    end
+   if isPlaying and isRecording then
+      recordingNotes[semitone] = {semitone=semitone,
+                                  velocity=velocity,
+                                  tick=math.ceil(lastTick)}
+      
+      --print('playnote', inspect(recordingNotes[semitone]))
+   end
    love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
+
 end
 
+
+
 function stopNote(semitone)
+   if isPlaying and isRecording then
+      local me = recordingNotes[semitone]
+      if me then
+         local tick =  math.ceil(lastTick)
+         local current = notes[tick]
+         if current ~= nil then
+           -- print('??', inspect(current))
+            table.insert(notes[me.tick],
+                         {key=me.semitone,
+                          length=tick - me.tick,
+                          startTick=me.tick  })
+
+         else
+            current = {{key=me.semitone,
+                        length=tick - me.tick,
+                        startTick=me.tick}}
+           -- print('stop', inspect(current), me.tick)
+
+            notes[me.tick] = current
+         end
+         
+         
+         --print('duration:', math.ceil(lastTick) -  me.tick)
+         recordingNotes[semitone] = nil
+         love.thread.getChannel( 'audio2main' ):push({notes=notes})
+
+         --print(semitone, 'recordingNotes', inspect(recordingNotes))
+      end
+      
+   end
+
    for i=1, #activeSources do
       if semitone == activeSources[i].key then
          
@@ -436,7 +480,10 @@ function handleThreadInput()
       --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
       --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
       -- end
-      
+       if v.isRecording ~= nil then
+          isRecording = v.isRecording
+       end
+       
       if v.isPlaying ~= nil then
          isPlaying = v.isPlaying
          now = love.timer.getTime()
@@ -750,6 +797,8 @@ while(run ) do
 
       if math.floor(tick) ~= math.floor(lastTick) then
          local wholeTick = math.ceil(tick)
+         -- check our notes
+         
          love.thread.getChannel( 'audio2main' ):push({tick=wholeTick})
          if wholeTick % ticksPerUnit == 0 then
             local pitch = 1
