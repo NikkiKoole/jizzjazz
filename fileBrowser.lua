@@ -18,11 +18,13 @@ end
 
 function handleFileBrowserWheelMoved(browser, a,b)
    browser.scrollTop = browser.scrollTop + b
+   --print(browser.amount)
+   --if browser.scrollTop > #browser.all - (browser.amount or 10) then
+   --   browser.scrollTop = #browser.all - (browser.amount or 10)
+   --end
    
-   if browser.scrollTop > #browser.all - (browser.amount or 10) then
-      browser.scrollTop = #browser.all - (browser.amount or 10)
-   end
    if browser.scrollTop < 0 then browser.scrollTop = 0 end
+   if browser.scrollTop > #browser.all then browser.scrollTop = #browser.all end
    browser.scrollTop = math.floor(browser.scrollTop)
 end
 

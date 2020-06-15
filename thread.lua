@@ -2,6 +2,7 @@ require('love.timer')
 require('love.sound')
 require('love.audio')
 require('love.math')
+require 'soundStuff'
 sone = require 'sone'
 require 'instrument'
 --https://github.com/danigb/timestretch/blob/master/lib/index.js
@@ -11,7 +12,6 @@ local inspect = require "inspect"
 local now = love.timer.getTime()
 local time = 0
 local lastTick = -1
---local lastTick2 = 0
 local run = false
 local isPlaying = false
 local timeData = nil
@@ -22,153 +22,35 @@ local notes = {}
 local triggeredPlayNotes = {}
 
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
+
 metronomeBeat:setVolume(0.5)
 channel 	= {};
 channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
 channel.main2audio	= love.thread.getChannel ( "main2audio" ); --from main
 
-function writeSoundData(toClone, startPos, endPos)
-   local rate = toClone:getSampleRate( )
-   local bitDepth = toClone:getBitDepth()
-   local channels = toClone:getChannelCount()
-   local sound_data = love.sound.newSoundData((endPos - startPos) + 0, rate, bitDepth, channels)
-   
-   for i = startPos, endPos-1 do
-      sound_data:setSample(i-startPos, toClone:getSample(i)  )
-   end
-   
-   return sound_data
-end
-function writeSoundDataMultipleTimes(toClone, startPos, endPos, times)
-   -- we need bigger samples for higher notes, queueing 64+ samples breaks so just patch them already.
-   local rate = toClone:getSampleRate( )
-   local bitDepth = toClone:getBitDepth()
-   local channels = toClone:getChannelCount()
-   local size = (endPos - startPos)+0
-   local sound_data = love.sound.newSoundData((size * times) + 0, rate, bitDepth, channels)
-
-   for t = 1, times do
-      for i = startPos, endPos-1 do
-         sound_data:setSample(i-startPos + ((t-1) * size), toClone:getSample(i)  )
-      end
-   end
-   
-   return sound_data
-end
-
 
 
 function getQueueable(s)
-   return love.audio.newQueueableSource( s:getSampleRate( ),
-                                         s:getBitDepth(),
-                                         s:getChannelCount(), 8 )
+   return love.audio.newQueueableSource(
+      s:getSampleRate( ), s:getBitDepth(), s:getChannelCount(), 8
+   )
 end
 
 
 
-local vanillaAdsr = {
-   attack = 0.01,
-   max   = .50,
-   decay = 0.0,
-   sustain= .50,
-   release = .2,
-}
-local vanillaEq = {
-   fadeout = 0,
-   fadein = 0,
-   lowpass =  vanillaFilter(),
-   highpass =  vanillaFilter(),
-   bandpass = vanillaFilter(),         
-   allpass = vanillaFilter(),
-   lowshelf = vanillaFilter(true),
-   highshelf = vanillaFilter(true),
-}
-
-function loadAndFillInstrument()
-
-   for i =1 , #instrument.sounds do
-      local s = love.sound.newSoundData( instrument.sounds[i].sample.path )
-
-      if instrument.adsr then
-         instrument.sounds[i].adsr = instrument.adsr
-      end
-      
-      if not instrument.sounds[i].adsr then
-         instrument.sounds[i].adsr = vanillaAdsr
-      end
-      if not instrument.sounds[i].eq then
-         instrument.sounds[i].eq = vanillaEq
-      end
-      
-      
-      local loopStart = instrument.sounds[i].sample.loopStart
-      local loopEnd = instrument.sounds[i].sample.loopEnd 
-
-      if (loopStart and loopEnd) then
-         instrument.sounds[i].sample.fullSoundData = s
-         instrument.sounds[i].sample.soundData = s
-         
-         local begin = writeSoundData(s, 0, loopStart)
-         
-         -- TODO for some samples you want to write multiple middle parts!!!!!!!!!!!!!!1
-         -- not for all
-         local middle = writeSoundDataMultipleTimes(s, loopStart, loopEnd, 4)
-         local after = writeSoundData(s, loopEnd, s:getSampleCount()-1)
-
-         instrument.sounds[i].sample.loopPointParts = {begin=begin, middle=middle, after=after}
-
-      else
-         instrument.sounds[i].sample.fullSoundData = s
-         instrument.sounds[i].sample.soundData =s
-         instrument.sounds[i].sample.sound = love.audio.newSource(s, 'static')
-      end
-   end
-
-   
-   love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
+function loadAndFillInstrument(instrument)
+   loadAndFillInstrumentRaw(instrument)
+    love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
    love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
-
 end
 
 
-instrument = getDefaultInstrument()
-loadAndFillInstrument()
-
+local instruments = {}
+instruments[1] = getDefaultInstrument()
+loadAndFillInstrument(instruments[1])
 
 activeSources = {}
-pitches = {}
-
-function mapInto(x, in_min, in_max, out_min, out_max)
-   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
-end
-
-for i = 0, 144+24 do
-   local freqs = {261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 466.16, 493.88, 523.25}
-   local o = math.floor(i / 12)
-   local semitone = i % 12
-   local n = mapInto(freqs[semitone+1], 261.63, 523.25, 0, 1)
-   local pitch = 1
-
-   if     o == 0 then pitch =(0.03125 -(0.015625 -  n/64))
-   elseif o == 1 then pitch =(0.0625 -(0.03125 -  n/32))
-   elseif o == 2 then pitch =(0.125 -(0.0625 -  n/16))
-   elseif o == 3 then pitch =(0.25 -(0.125 -  n/8))
-   elseif o == 4 then pitch =(0.5 -(0.25 -  n/4))
-   elseif o == 5 then pitch =(1 -(0.5 -  n/2))
-   elseif o == 6 then  pitch =(1 + n)
-   elseif o == 7 then  pitch =(2 + 2*n)
-   elseif o == 8 then  pitch =(4 + 4*n)
-   elseif o == 9 then  pitch =(8 + 8*n)
-   elseif o == 10 then  pitch =(16 + 16*n)
-   elseif o == 11 then  pitch =(32 + 32*n)
-   elseif o == 12 then  pitch =(64 + 64*n)
-   elseif o == 13 then  pitch =(128 + 128*n)
-   elseif o == 14 then  pitch =(256 + 256*n)
-   end
-
-   pitches[i] = pitch
-end
-
+pitches = fillPitches()
 
 if luamidi then
    print("Midi Input Ports: ", luamidi.getinportcount())
@@ -176,47 +58,23 @@ if luamidi then
    run = true
 end
 
-function getSoundForSemitoneAndVelocity(semitone, velocity)
-   if #instrument.sounds == 1 then
-      return instrument.sounds[1]
-   else
-      local bestScored = instrument.sounds[1]
-      local highestScore = 0
-      for i = 1, #instrument.sounds do
-         local score = 144000
-         score = score - (math.abs(instrument.sounds[i].sample.root * 1000 - semitone*1000))
-         
-         if (instrument.sounds[i].sample.rootVelocity) then
-            score = score - (math.abs(instrument.sounds[i].sample.rootVelocity  - velocity))
-         end
-
-         if score > highestScore then
-            highestScore = score
-            bestScored = instrument.sounds[i]
-         end
-      end
-      print('picked', bestScored.sample.path)
-      return bestScored
-   end
-   
-   
-end
 
 
-function playNote(semitone, velocity, instrument)
+function playNote(semitone, velocity, instrument, length )
 
-   local settings = instrument.settings
+   local settings = instruments[1].settings
    
    
-   local sound = getSoundForSemitoneAndVelocity(semitone, velocity) 
-   local transpose = instrument.settings.transpose
+   local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instruments[1]) 
+   local transpose = instruments[1].settings.transpose
    local adsr = sound.adsr
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
 
    if (settings.glide or settings.monophonic) and #activeSources > 0 then
       local index = 1 --findIndexFirstNonEchoNote()
-      assert(#activeSources == 1 or index > 1)
+      assert(#activeSources > 0)
+      activeSources[index].instrument = instrument
       activeSources[index].pickedInstrumentSound = sound
       activeSources[index].key = semitone
       activeSources[index].released = nil
@@ -264,6 +122,7 @@ function playNote(semitone, velocity, instrument)
       end
       
       local s = {sound=s2,
+                 instrument = instrument,
                  pickedInstrumentSound = sound,
                  key=semitone,
                  noteOnTime=now,
@@ -288,12 +147,20 @@ function playNote(semitone, velocity, instrument)
             s.sound:setLooping(true)
          end
       end
+
+      -- if length ~= nil then
+         
+      --    local perS = ( (timeData.tempo / 60) * 96) -- what you would use in 1 second
+      --    s.noteOffTime = now  + (length / perS)
+      --    s.noteOffVolume = 0.5  -- todo!
+      -- end
+      
       
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
       s.sound:play()
       love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s})
-
+      love.thread.getChannel( 'audio2main' ):push({soundData=s.fullSound})
       table.insert(activeSources, s)
    end
    
@@ -303,7 +170,7 @@ end
 
 
 
-function stopNote(semitone)
+function stopNote(semitone, instrument)
    
 
    for i=1, #activeSources do
@@ -320,12 +187,13 @@ function stopNote(semitone)
 end
 
 function getPitch(activeSource, offset)
-   local transpose = instrument.settings.transpose
+   offset = offset or 0
+   local transpose = activeSource.instrument.settings.transpose
    local rootTranspose =  0
    if activeSource.pickedInstrumentSound.sample.root then
       rootTranspose = 72 - activeSource.pickedInstrumentSound.sample.root
    end
-   local index = activeSource.key + (offset or 0) + transpose + rootTranspose
+   local index = activeSource.key + offset  + transpose + rootTranspose
    
    return pitches[index] or 1
 end
@@ -403,25 +271,14 @@ function recordStoppedNote(b)
                     length=tick - me.tick,
                     startTick=me.tick }
       if current ~= nil then
-         --print('adding another one rigt here!', me.tick, notes[me.tick])
-         table.insert(notes[me.tick], node)
+            table.insert(notes[me.tick], node)
       else
          current = {node}
          notes[me.tick] = current
       end
-
-      -- add the stop
-     -- local currentStop = notes[tick]
-     -- if currentStop ~= nil then
-     --    table.insert(notes[tick], {stop=true, key=me.semitone, startTick=me.tick})
-     -- else
-     --    notes[tick] = {{stop=true, key=me.semitone, startTick=me.tick}}
-     -- end
       
       recordingNotes[b] = nil
       love.thread.getChannel( 'audio2main' ):push({notes=notes})
-
-      --print(semitone, 'recordingNotes', inspect(recordingNotes))
    end
 end
 
@@ -442,21 +299,21 @@ function handleMIDIInput()
 
          if a == 144 then
             --print('midi message play', b)
-            playNote(b, c, instrument)
+            playNote(b, c, instruments[1])
             if isPlaying and isRecording then
                recordPlayedNote(b, c)
             end
          elseif a == 128 then
-            stopNote(b)
+            stopNote(b, instruments[1])
             if isPlaying and isRecording then
                recordStoppedNote(b)
                
             end
          elseif a == 176 then
             if b == 2 then
-               instrument.settings.vibratoSpeed = 96/ math.max(c,1)
+               instruments[1].settings.vibratoSpeed = 96/ math.max(c,1)
             elseif b == 3 then
-               instrument.settings.vibratoStrength = math.max(c,1)
+               instruments[1].settings.vibratoStrength = math.max(c,1)
 
             else
                print('knob', b,c)
@@ -476,24 +333,7 @@ end
 function handleThreadInput()
    local v = channel.main2audio:pop();
    if v then
-      -- if v.signatureBeatPerBar then
-      --    timeData.signatureBeatPerBar = v.signatureBeatPerBar
       
-      --    local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
-      --    local newBeat = lastTick / ticksPerUnit
-      --    timeData.beat  = (newBeat % timeData.signatureBeatPerBar) + 1
-      --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
-      --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
-      -- end
-      -- if v.signatureUnit then
-      --    timeData.signatureUnit = v.signatureUnit
-      --    -- now we also want to change the current beat and bar i blieve
-      --    local ticksPerUnit = 96 / (timeData.signatureUnit/ 4)
-      --    local newBeat = lastTick / ticksPerUnit
-      --    timeData.beat  = (newBeat % timeData.signatureBeatPerBar) + 1
-      --    timeData.bar = (newBeat / timeData.signatureBeatPerBar)
-      --    --love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
-      -- end
       if v.isRecording ~= nil then
          isRecording = v.isRecording
       end
@@ -531,16 +371,16 @@ function handleThreadInput()
       end
 
       if v.instrument then
-         instrument = v.instrument
+         instruments[1] = v.instrument
       end
       
       if v.loadInstrument then
-         instrument = v.loadInstrument
-         loadAndFillInstrument()
+         instruments[1] = v.loadInstrument
+         loadAndFillInstrument(instruments[1])
       end
       
       if v.adsr then
-         instrument.sounds[1].adsr = v.adsr
+         instruments[1].sounds[1].adsr = v.adsr
       end
 
       if v.instrumentStartEnd then
@@ -549,39 +389,30 @@ function handleThreadInput()
          local loopEnd = d.sounds[1].sample.loopEnd 
 
          if loopStart and loopEnd then
-            instrument.sounds[1].sample.loopStart = loopStart
-            instrument.sounds[1].sample.loopEnd =loopEnd
-            local soundData = instrument.sounds[1].sample.soundData
+            instruments[1].sounds[1].sample.loopStart = loopStart
+            instruments[1].sounds[1].sample.loopEnd =loopEnd
+            local soundData = instruments[1].sounds[1].sample.soundData
             local begin = writeSoundData(soundData, 0, loopStart)
             local middle = writeSoundData(soundData, loopStart, loopEnd)
             local after = writeSoundData(soundData, loopEnd, soundData:getSampleCount())
-            instrument.sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
+            instruments[1].sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
          end
       end
       
       if v.osc  then
-         instrument =  getDefaultInstrument()
+         instruments[1] =  getDefaultInstrument()
          
-         instrument.settings.useVanillaLooping = true
-         instrument.sounds[1].sample.loopStart= nil
-         instrument.sounds[1].sample.loopEnd= nil
-         instrument.sounds[1].sample.loopPointParts = nil
-         instrument.sounds[1].sample.path = v.osc
-         loadAndFillInstrument()
-         --soundData = love.sound.newSoundData( v.osc )
-         
-         --instrument.sounds[1].sample.fullSoundData = soundData
-         --instrument.sounds[1].sample.soundData = soundData
-
-         --sound = love.audio.newSource(soundData, 'static')
-         --instrument.sounds[1].sample.sound = sound
-         --print('after osc', inspect(instrument))
-         --love.thread.getChannel( 'audio2main' ):push({soundData=soundData})
-         --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
+         instruments[1].settings.useVanillaLooping = true
+         instruments[1].sounds[1].sample.loopStart= nil
+         instruments[1].sounds[1].sample.loopEnd= nil
+         instruments[1].sounds[1].sample.loopPointParts = nil
+         instruments[1].sounds[1].sample.path = v.osc
+         loadAndFillInstrument(instruments[1])
+       
       end
       
       if v.eq then
-         soundData = love.sound.newSoundData(instrument.sounds[1].sample.path  )
+         soundData = love.sound.newSoundData(instruments[1].sounds[1].sample.path  )
          if v.eq.lowshelf.enabled then
             sone.filter(soundData, {
                            type = "lowshelf",
@@ -637,21 +468,21 @@ function handleThreadInput()
 
          sound = love.audio.newSource(soundData, 'static')
 
-         instrument.sounds[1].sample.soundData = soundData
-         instrument.sounds[1].sample.sound = sound
+         instruments[1].sounds[1].sample.soundData = soundData
+         instruments[1].sounds[1].sample.sound = sound
 
-         local loopStart = instrument.sounds[1].sample.loopStart
-         local loopEnd = instrument.sounds[1].sample.loopEnd 
+         local loopStart = instruments[1].sounds[1].sample.loopStart
+         local loopEnd = instruments[1].sounds[1].sample.loopEnd 
 
          if loopStart and loopEnd then
-            instrument.sounds[1].sample.fullSoundData = soundData
-            instrument.sounds[1].sample.soundData = soundData
+            instruments[1].sounds[1].sample.fullSoundData = soundData
+            instruments[1].sounds[1].sample.soundData = soundData
             
             local begin = writeSoundData(soundData, 0, loopStart)
             local middle = writeSoundData(soundData, loopStart, loopEnd)
             local after = writeSoundData(soundData, loopEnd, soundData:getSampleCount()-1)
 
-            instrument.sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
+            instruments[1].sounds[1].sample.loopPointParts = {begin=begin, middle=middle, after=after}
          end
          
          
@@ -668,9 +499,10 @@ while(run ) do
       --      print('no one here')
    end
    
-   local settings = instrument.settings
+   
 
    for i =1, #activeSources do
+      local settings = activeSources[i].instrument.settings
       -- lets first do the queuepart
       if activeSources[i].usingLoopPoints and  activeSources[i].pickedInstrumentSound.sample.loopPointParts then
          
@@ -689,17 +521,13 @@ while(run ) do
          end
 
          if (timeLeftInSample < 0.016) then -- only 16 ms left
-            --print('queeuein', now)
             activeSources[i].sound:queue(activeSources[i].pickedInstrumentSound.sample.loopPointParts.middle)
-            
-            
-            --print(pitch)
          end
       end
       
 
       local pitch =  getPitch(activeSources[i])
-      
+
       local v = getVolumeASDR(now, activeSources[i].noteOnTime,
                               activeSources[i].noteOffTime,
                               activeSources[i].noteOffVolume,
@@ -732,11 +560,11 @@ while(run ) do
       if settings.vibrato then
          local vibratoSmallPitchDiff =  (getPitch(activeSources[i]) - getPitch(activeSources[i], 1) ) 
          local vibratoPitchOffset = math.sin(time * settings.vibratoSpeed) *  vibratoSmallPitchDiff/(settings.vibratoStrength) -- [-1, 1]
-         --print(vibratoPitchOffset, newPitch)
+
          if activeSources[i].glideFromPitch then
             newPitch = newPitch + (vibratoPitchOffset)/2
          else
-            newPitch =  getPitch(activeSources[i])  + (vibratoPitchOffset)--(math.sin(time*vibratoSpeed)/vibratoStrength)
+            newPitch =  getPitch(activeSources[i])  + (vibratoPitchOffset)
          end
       end
 
@@ -755,12 +583,9 @@ while(run ) do
    local hasRemovedOne = false
    for i = #activeSources, 1, -1 do
       if activeSources[i].remove then
-         --activeSources[i].remove = activeSources[i].remove -1
-         --if activeSources[i].remove <= 0 then
          activeSources[i].sound:stop()
          table.remove(activeSources, i)
          hasRemovedOne = true
-         --end
       end
    end
    if hasRemovedOne then
@@ -789,17 +614,12 @@ while(run ) do
    time = time + delta
    
    if isPlaying then
-      
-      --if lastTick == -1 then
-      --   lastTick = 0
-      --end
-      --print(lastTick)
+
       timeSinceStartPlay = timeSinceStartPlay + delta
-      --print(timeSinceStartPlay)
+
       local pulses_per_quarter_note = 96
       local tickdelta = (delta * (timeData.tempo / 60) * 96)
       local tick = lastTick + tickdelta
-      
       
       local unitsPerBar = timeData.signatureBeatPerBar 
       local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
@@ -810,48 +630,26 @@ while(run ) do
       end
 
       if math.floor(tick) ~= math.floor(lastTick) then
+         
          local wholeTick = math.ceil(tick)
-
 
          for t = #triggeredPlayNotes, 1, -1 do
             local p = triggeredPlayNotes[t]
             if ((p.startTick + p.length) == wholeTick) then
-               --print(p.startTick,p.length,wholeTick)
-               stopNote(p.key)
+               stopNote(p.key, instruments[1])
                table.remove(triggeredPlayNotes, t)
             end
          end
          
-         -- look in a cache of all the notes being pressed any of them have been released
-
-         --print(inspect(notes))
-         --for k,v in pairs(notes) do
-         --   print(k, inspect(v))
-         --end
-         
 
          if notes[wholeTick] ~= nil then
-            --print(inspect(notes[wholeTick]))
             for i = 1, #notes[wholeTick] do
                local n = notes[wholeTick][i]
-               --if not n.stop then
-               --print(lastTick, n.startTick, n.length)
-               playNote(n.key, n.velocity, instrument)
+               playNote(n.key, n.velocity, instruments[1])
                table.insert(triggeredPlayNotes, n)
-               --else
-               --   stopNote(n.key)
-               --end
-               
-               
             end
-            
          end
-         
-         -- check our notes
-         --print(inspect(notes))
-         --if notes[wholetick] then
-         --   print('somehting is playing here!')
-         --end
+      
          
          love.thread.getChannel( 'audio2main' ):push({tick=wholeTick})
          if wholeTick % ticksPerUnit == 0 then

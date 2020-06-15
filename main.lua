@@ -82,6 +82,8 @@ function love.keypressed(key)
    
 end
 
+
+
 function mysplit (inputstr, sep)
    if sep == nil then
       sep = "%s"
@@ -95,8 +97,8 @@ end
 
 function love.wheelmoved(a,b)
    --handleMusicBarWheelMoved(musicBar, a,b)
-   --handleFileBrowserWheelMoved(browser, a,b)
-   --handleWavLoopZoom(a,b)
+   handleFileBrowserWheelMoved(browser, a,b)
+   handleWavLoopZoom(a,b, instrument.sounds[1].sample)
 
 
    local mx, my = love.mouse:getPosition()
@@ -254,7 +256,8 @@ function love.load()
       record = love.graphics.newImage("resources/icons/record.png"),
       rewind = love.graphics.newImage("resources/icons/rewind.png"),
       stop = love.graphics.newImage("resources/icons/stop.png"),
-      metronome = love.graphics.newImage("resources/icons/metronome.png")
+      metronome = love.graphics.newImage("resources/icons/metronome.png"),
+      waveform = love.graphics.newImage("resources/icons/waveform.png")
     }
    
    --musicBar = createMusicBar()
@@ -331,6 +334,7 @@ function love.load()
    canvasY = topBarHeight + margin
    canvasWidth = 144 -- will be overrtiiten inloop
    canvasHeight = 144
+   lastTick = 0
 
 end
 
@@ -367,6 +371,71 @@ function  pasteNoteNowUsingLastPressed()
 end
 
 
+ function renderPianoRollNotes()
+      love.graphics.setColor(0.5,0.5,0.5)
+      local startKey = 36 -- this is a C4
+      local octaves = 5
+      local amount = (12 * octaves)-1
+      --print(amount)
+      --print(inspect(notes))
+      for k,v in pairs(notes) do
+         for t,vv in pairs(v) do
+            if not vv.stop then
+               local x = canvasX + (k*canvasScale)
+               
+               local y = canvasY + amount*10   - (vv.key-startKey)*10
+               local w = vv.length * canvasScale
+               local h = 10
+               love.graphics.rectangle("fill", x,y,w,h)
+            end
+         end
+      end
+ end
+
+  function renderVerticalPianoRoll(startX, startY, width)
+      local startKey = 36 -- this is a C4
+      local octaves = 5
+      local whites = {0,2,4,5,7,9,11}
+      local amount = (12 * octaves)
+      
+      --print((12 * octaves)-1)
+
+      love.graphics.setColor(0.2,0.2,0.2,0.2)
+      love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*10)
+
+      
+      for i=0, amount do
+         local color = {0,0,0}
+
+         if isInTable((i%12), whites) then
+            color = {1,1,1}
+         end
+
+         love.graphics.setColor(0,0,0)
+
+         local y = startY+ (amount)*10 - (i*10)
+         love.graphics.rectangle("line", startX, y, width, 10)
+
+         love.graphics.setColor(color[1], color[2], color[3])
+
+         if activeSources then
+            for j=1, #activeSources do
+               if activeSources[j].key ==  i + startKey then
+                  love.graphics.setColor(red[1], red[2], red[3])
+                  if activeSources[j].released==true then
+                     love.graphics.setColor(0.5,0.5,0.5)
+                  end
+               end
+            end
+         end
+         
+         love.graphics.rectangle("fill", startX, y, width, 10)
+      end
+      
+   end
+   
+
+
 function love.draw()
    love.graphics.setFont(font)
    local screenW, screenH = love.graphics.getDimensions()
@@ -391,89 +460,17 @@ function love.draw()
       love.graphics.print(lastHitSemitone, 100, 10)
    end
    
-   
+    renderBrowser(browser, margin, topBarHeight + margin + canvasHeight, instrWidth, screenH - (topBarHeight + 20))
 
-
-   --getMouseWheelableArea('mw', canvasX,canvasY, canvasW, canvasHeight)
-   
-   renderBrowser(browser, margin, topBarHeight + margin + canvasHeight, instrWidth, screenH - (topBarHeight + 20))
-
-   
+    love.graphics.setLineWidth(4)
    love.graphics.setColor(0,0,0)
    love.graphics.rectangle("line", margin , topBarHeight + margin, instrWidth, 144)
  
    
    renderMeasureBarsInSomeRect(canvasX, canvasY, canvasWidth, canvasHeight, canvasScale)
-
-   renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
-
-
-  
-   
-
-   function renderVerticalPianoRoll(startX, startY, width)
-      local startKey = 36 -- this is a C4
-      local octaves = 5
-      local whites = {0,2,4,5,7,9,11}
-      local amount = (12 * octaves)-1
-      
-      --print((12 * octaves)-1)
-      for i=0, amount do
-         local color = {0,0,0}
-
-         if isInTable((i%12), whites) then
-            color = {1,1,1}
-         end
-
-         love.graphics.setColor(0,0,0)
-
-         local y = startY+ amount*10 - (i*10)
-         love.graphics.rectangle("line", startX, y, width, 10)
-
-         love.graphics.setColor(color[1], color[2], color[3])
-
-         if activeSources then
-            for j=1, #activeSources do
-               if activeSources[j].key ==  i + startKey then
-                  love.graphics.setColor(red[1], red[2], red[3])
-                  if activeSources[j].released==true then
-                     love.graphics.setColor(0.5,0.5,0.5)
-                  end
-               end
-            end
-         end
-         
-         love.graphics.rectangle("fill", startX, y, width, 10)
-      end
-   end
-   
-   
-   renderVerticalPianoRoll(canvasX-30, canvasY, 30)
-
-   love.graphics.setColor(0.5,0.5,0.5)
-   
-   --local beatStep = (96/(timeData.signatureUnit/4))
-   --local barStep = (96/(timeData.signatureUnit/4))*timeData.signatureBeatPerBar
-
-   -- canvasX, canvasY
-   local startKey = 36 -- this is a C4
-   local octaves = 5
-   local amount = (12 * octaves)-1
-   --print(amount)
-   --print(inspect(notes))
-   for k,v in pairs(notes) do
-      for t,vv in pairs(v) do
-         if not vv.stop then
-            local x = canvasX + (k*canvasScale)
-            
-            local y = canvasY + amount*10   - (vv.key-startKey)*10
-            local w = vv.length * canvasScale
-            local h = 10
-            love.graphics.rectangle("fill", x,y,w,h)
-         end
-      end
-   end
-   
+   -- renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
+   -- renderVerticalPianoRoll(canvasX-30, canvasY, 30)
+   -- renderPianoRollNotes()
    
    love.graphics.setColor(0,0,0)
    
@@ -482,6 +479,9 @@ function love.draw()
       --print(instrument.sounds[1].sample.path)
       local name = getInstrumentName(instrument.sounds[1].sample.path)
       renderLabel(name, margin,  topBarHeight + margin)
+
+      
+      imgbutton('waveform', ui.waveform, margin, topBarHeight + margin+ 30, 48, 48)
       
    end
    
@@ -557,23 +557,23 @@ function love.draw()
    
    --renderBrowser(instrumentBrowser, 40, 200)
    
-   -- if renderSoundData then
-   --    renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
-   -- end
+   if renderSoundData then
+       renderWave( renderSoundData, 660, screenH - (20 * 20) - 20 + 50, 300, 100)
+    end
    
-   -- if playingSound then
-   --    renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
-   -- end
+   if playingSound then
+       renderPlayingSoundBar( 660, screenH - (20 * 20) - 20 +50, 300, 100)
+    end
    
-   --if instrument then
-   --   renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
-   --end
+   if instrument then
+      renderADSREnvelope(instrument.sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
+   end
 
-   -- love.graphics.setColor(red[1],red[2],red[3])
-   -- love.graphics.setLineWidth(3)
-   -- if (instrument) then
-   --    renderEQ(instrument.sounds[1].eq, 240 +  40, screenH - (20 * 20))
-   -- end
+   love.graphics.setColor(red[1],red[2],red[3])
+   love.graphics.setLineWidth(3)
+   if (instrument) then
+       renderEQ(instrument.sounds[1].eq, 240 +  40, screenH - (20 * 20))
+    end
 
    -- if (instrument) then
    --    renderLabel('fade out', 280, 750)
@@ -594,9 +594,9 @@ function love.draw()
    -- love.graphics.setColor(red[1],red[2],red[3])
    -- love.graphics.setLineWidth(3)
 
-   -- if (instrument) then
-   --    renderInstrumentSettings(instrument, 660, 630)
-   -- end
+   if (instrument) then
+       renderInstrumentSettings(instrument, 660, 630)
+    end
 
 
    -- now trya n make the simple sequencer
@@ -644,42 +644,43 @@ function love.draw()
    --if instrument then
    --   print(inspect( instrument.sounds[1]))
    --end
-   
-   -- if instrument then
-      
-   --    local s = instrument.sounds[1].sample
-   --    if s.loopStart and s.loopEnd then
-   --       love.graphics.setLineWidth(1)
 
-   --       renderWave(s.soundData,  lpUI.x, lpUI.y, 500, 300, s.loopStart, s.loopEnd)
-   --       renderWaveLoopConnection(s.soundData, lpUI.x, lpUI.y, 500, 300*2, s.loopStart, s.loopEnd )
-   --       renderLabel("start", lpUI.x-50 , lpUI.y - lpUI.height/2 - 70)
-   --       renderLabel(math.floor(instrument.sounds[1].sample.loopStart), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 70)
-   --       local sp = h_slider('startPos', lpUI.x , lpUI.y - lpUI.height/2 - 60, 500, s.loopStart, 1, s.soundData:getSampleCount( ))
-   --       if sp.value then
-   --          instrument.sounds[1].sample.loopStart = sp.value
-   --          if instrument.sounds[1].sample.loopStart >= instrument.sounds[1].sample.loopEnd then
-   --             instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd-1
-   --          end
-   --       end
-   --       renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
-   --        renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
-   --       local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
+
+   if instrument then
+      
+      local s = instrument.sounds[1].sample
+      if s.loopStart and s.loopEnd then
+         love.graphics.setLineWidth(1)
+
+         renderWave(s.soundData,  lpUI.x, lpUI.y, 500, 300, s.loopStart, s.loopEnd)
+         renderWaveLoopConnection(s.soundData, lpUI.x, lpUI.y, 500, 300*2, s.loopStart, s.loopEnd )
+         renderLabel("start", lpUI.x-50 , lpUI.y - lpUI.height/2 - 70)
+         renderLabel(math.floor(instrument.sounds[1].sample.loopStart), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 70)
+         local sp = h_slider('startPos', lpUI.x , lpUI.y - lpUI.height/2 - 60, 500, s.loopStart, 1, s.soundData:getSampleCount( ))
+         if sp.value then
+            instrument.sounds[1].sample.loopStart = sp.value
+            if instrument.sounds[1].sample.loopStart >= instrument.sounds[1].sample.loopEnd then
+               instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopEnd-1
+            end
+         end
+         renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
+          renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
+         local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
          
-   --       if ep.value then
-   --          instrument.sounds[1].sample.loopEnd = ep.value
-   --          if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
-   --             instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
-   --          end
-   --       end
+         if ep.value then
+            instrument.sounds[1].sample.loopEnd = ep.value
+            if instrument.sounds[1].sample.loopEnd <= instrument.sounds[1].sample.loopStart then
+               instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopStart+1
+            end
+         end
          
-   --    end
-   -- end
+      end
+   end
 end
 
-function handleWavLoopZoom(dx, dy)
+function handleWavLoopZoom(dx, dy, sample)
    if instrument then
-      local s = instrument.sounds[1].sample
+      local s = sample
       if s.loopStart and s.loopEnd then 
          local x, y = love.mouse.getPosition( )
          local count = s.soundData:getSampleCount( )
@@ -697,18 +698,18 @@ function handleWavLoopZoom(dx, dy)
                   rangeAfter = math.floor(rangeNow * 1.1)
                end
                local rangeDiff = rangeNow - rangeAfter
-               instrument.sounds[1].sample.loopStart = s.loopStart + rangeDiff/2
-               instrument.sounds[1].sample.loopEnd = s.loopEnd - rangeDiff/2
-               local sample2 = mapInto(x, lpUI.x, lpUI.x + lpUI.width,  instrument.sounds[1].sample.loopStart, instrument.sounds[1].sample.loopEnd)
+               sample.loopStart = s.loopStart + rangeDiff/2
+               sample.loopEnd = s.loopEnd - rangeDiff/2
+               local sample2 = mapInto(x, lpUI.x, lpUI.x + lpUI.width,  sample.loopStart, sample.loopEnd)
                local sampleDiff = sample2 - sample1
-               instrument.sounds[1].sample.loopStart = instrument.sounds[1].sample.loopStart - sampleDiff
-               instrument.sounds[1].sample.loopEnd = instrument.sounds[1].sample.loopEnd - sampleDiff
+               sample.loopStart = sample.loopStart - sampleDiff
+               sample.loopEnd = sample.loopEnd - sampleDiff
 
-               if instrument.sounds[1].sample.loopStart < 0 then
-                  instrument.sounds[1].sample.loopStart = 0
+               if sample.loopStart < 0 then
+                  sample.loopStart = 0
                end
-               if instrument.sounds[1].sample.loopEnd > count-1 then
-                  instrument.sounds[1].sample.loopEnd = count-1
+               if sample.loopEnd > count-1 then
+                  sample.loopEnd = count-1
                end
                
             end
