@@ -117,6 +117,8 @@ function ends_with(str, ending)
 end
 
 function handleBrowserClick(browser,x,y)
+   print(browser.x, browser.y,x,y)
+   if not browser.x or not browser.y then return end
    local result = false
    if x> browser.x and x < browser.x+200 and y > browser.y then
       local index = math.floor((y-browser.y)/20) + 1

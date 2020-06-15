@@ -32,6 +32,8 @@ function getUIRect(id, x,y,w,h)
   if mouseState.click then
      local mx, my = love.mouse.getPosition( )
      if pointInRect(mx,my,x,y,w,h) then
+
+
         result = true
      end
    end
@@ -68,7 +70,7 @@ end
 
 function imgbutton(id, img, x, y, w, h, color)
    scale = scale or 1
-   color = color or {1,1,1}
+   color = color or {1,1,1,1}
    local mx, my = love.mouse:getPosition()
 
    
@@ -78,7 +80,7 @@ function imgbutton(id, img, x, y, w, h, color)
 
    local clicked = false
 
-   love.graphics.setColor(0,0,0,.75)
+   love.graphics.setColor(0,0,0,color[4] or .75)
    love.graphics.rectangle("fill", x, y, w, h)
   
 
@@ -94,7 +96,7 @@ function imgbutton(id, img, x, y, w, h, color)
    end
  
 
-   love.graphics.setColor(color[1], color[2], color[3])
+   love.graphics.setColor(color[1], color[2], color[3], color[4])
    love.graphics.draw(img, x, y, 0, imgScaleX, imgScaleY)
 
    return {

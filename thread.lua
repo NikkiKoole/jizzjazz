@@ -15,6 +15,7 @@ local lastTick = -1
 local run = false
 local isPlaying = false
 local timeData = nil
+local beatAndBar = nil
 local timeSinceStartPlay = 0
 
 local recordingNotes = {}
@@ -22,6 +23,7 @@ local notes = {}
 local triggeredPlayNotes = {}
 
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
+local metronomeOn = false 
 
 metronomeBeat:setVolume(0.5)
 channel 	= {};
@@ -333,6 +335,10 @@ end
 function handleThreadInput()
    local v = channel.main2audio:pop();
    if v then
+
+      if v.metronomeOn ~= nil then
+         metronomeOn = v.metronomeOn
+      end
       
       if v.isRecording ~= nil then
          isRecording = v.isRecording
@@ -342,18 +348,19 @@ function handleThreadInput()
          isPlaying = v.isPlaying
          now = love.timer.getTime()
       end
+
       if v.timeData then
          timeData = v.timeData
       end
+      
+      if v.beatAndBar then
+         beatAndBar = v.beatAndBar
+      end
+      
       if v.stepBackTime then
-         timeData = v.stepBackTime
          timeSinceStartPlay = 0
          lastTick = 0
       end
-      if v.tempo then
-         timeData.tempo = v.tempo
-      end
-      
       
       if (v == 'quit') then
          for i = 1, #activeSources do
@@ -612,8 +619,8 @@ while(run ) do
    local delta = n - now
    now = n
    time = time + delta
-   
-   if isPlaying then
+
+   if isPlaying==true then
 
       timeSinceStartPlay = timeSinceStartPlay + delta
 
@@ -649,22 +656,24 @@ while(run ) do
                table.insert(triggeredPlayNotes, n)
             end
          end
-      
-         
+
          love.thread.getChannel( 'audio2main' ):push({tick=wholeTick})
+
          if wholeTick % ticksPerUnit == 0 then
             local pitch = 1
             --print(timeSinceStartPlay)
-            timeData.beat = timeData.beat + 1
-            if timeData.beat > unitsPerBar then
-               timeData.beat = 1
-               timeData.bar = timeData.bar + 1
+            beatAndBar.beat = beatAndBar.beat + 1
+            if beatAndBar.beat > unitsPerBar then
+               beatAndBar.beat = 1
+               beatAndBar.bar = beatAndBar.bar + 1
                pitch = 1.5
                
             end
-            metronomeBeat:setPitch(pitch)
-            metronomeBeat:play()
-            love.thread.getChannel( 'audio2main' ):push({timeData=timeData})
+            if metronomeOn then
+               metronomeBeat:setPitch(pitch)
+               metronomeBeat:play()
+            end
+            love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
          end
       end
 
