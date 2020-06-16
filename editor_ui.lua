@@ -32,7 +32,6 @@ function tapedeckButtons()
 end
 
 function drawTempoUI(x,y, timeData)
-   --love.graphics.print('bpm: '..math.floor(timeData.tempo), x, y)
    local bpm = v_slider('bpm', x, y+50, 310, timeData.tempo , 10, 300)
    if bpm.value ~= nil then
       timeData.tempo =  math.floor(bpm.value)
@@ -43,7 +42,6 @@ end
 
 
 function drawBeatSignatureUI(x,y,w,h, timeData)
-   --love.graphics.print(timeData.signatureBeatPerBar, x, y)
    local dirty = false
    local bpbmin = charButton('beatPerBarMin', "<", x-25, y, 16, 20)
    if bpbmin.clicked then
@@ -63,7 +61,6 @@ function drawBeatSignatureUI(x,y,w,h, timeData)
       dirty = true
    end
    
-   --love.graphics.print(timeData.signatureUnit, x, y+30)
    local unitmin = charButton('unitMin', "<", x-25, y+30, 16, 20)
    if unitmin.clicked then
       timeData.signatureUnit = timeData.signatureUnit/2
@@ -149,14 +146,11 @@ function renderInstrumentSettings(instrument, x, y)
    knob = drawToggle('glide', x,y+ 40, instrument.settings.glide)
    if knob.value ~= nil then
       instrument.settings.glide = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
    knob = draw_knob('glideDuration', x+150,y+ 50, instrument.settings.glideDuration, 0, 2)
    if knob.value ~= nil then
       instrument.settings.glideDuration = knob.value
-      --print(k.value)
-
       channel.main2audio:push( {instrument=instrument} );
    end
 

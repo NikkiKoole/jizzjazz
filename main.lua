@@ -153,12 +153,15 @@ function love.update(dt)
          lastHitNote =  names[(v.playSemitone % 12)+1]..number
          lastHitSemitone = v.playSemitone
       end
+      if v.instruments then
+         instruments = v.instruments
+      end
+      
       if v.instrument then
          if not instruments then
             instruments = {}
          end
          
-         --print(inspect(v.instrument))
          instruments[1] = v.instrument
       end
       if v.eq then
@@ -201,12 +204,13 @@ function love.mousereleased(x,y)
    dragging = false
    love.mouse.setCursor(cursors.arrow)
 
-   if handleBrowserClick(browser, x,y) then
-      browser = fileBrowser(browser.root, browser.subdirs,
-                                browser.allowedExtensions,
-                                browser.kind)
+   if showSettingsForInstrumentIndex > 0 then
+      if handleBrowserClick(browser, x,y) then
+         browser = fileBrowser(browser.root, browser.subdirs,
+                               browser.allowedExtensions,
+                               browser.kind)
+      end
    end
-
    --if handleBrowserClick(instrumentBrowser, x,y) then
       -- instrumentBrowser = fileBrowser(browser.root, browser.subdirs,
       --                           browser.allowedExtensions,
@@ -509,61 +513,108 @@ function love.draw()
    
  
    
-   renderMeasureBarsInSomeRect(canvasX, canvasY, canvasWidth, canvasHeight, canvasScale)
-   renderPlayHead(canvasX, canvasY, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
-
-   renderMeasureBarsInSomeRect(canvasX, canvasY + canvasHeight, canvasWidth, canvasHeight, canvasScale)
+  
+  
 
    -- renderVerticalPianoRoll(canvasX-30, canvasY, 30)
    -- renderPianoRollNotes()
 
    
-   local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
-   local index = math.floor(((lastTick/100) % #hues)+1)
-   local hue = hues[index]
-   
-   local r,g,b =  HSL(hue, 25, 75, 1)
-   local active = activeInstrumentIndex == 1
-   if active then
-      r,g,b =  HSL(hue, 100, 150, 1)
-     
-   end
-   love.graphics.setColor(r, g, b)
-   love.graphics.rectangle("fill", margin , topBarHeight + margin, instrWidth, canvasHeight)
 
 
-   love.graphics.setLineWidth(4)
-   love.graphics.setColor(0,0,0)
-   love.graphics.rectangle("line", margin , topBarHeight + margin, instrWidth, canvasHeight)
-   
-   if instruments[1] then
-      local name = getInstrumentName(instruments[1].sounds[1].sample.path)
-      local nameWidth = getStringWidth(name)
-      renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, active and 1.0 or 0.25)
-      local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, nameWidth, 20)
-      if label.clicked then
-         if activeInstrumentIndex == 1 then
-            activeInstrumentIndex = -1
-         else
-            activeInstrumentIndex = 1
-         end
+   for i = 1, #instruments do
+
+      local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
+      local index = i--math.floor(((lastTick/100) % #hues)+1)
+      local hue = hues[index]
+
+
+      local r,g,b =  HSL(hue, 25, 75, 1)
+      local active = activeInstrumentIndex == i
+      if active then
+         r,g,b =  HSL(hue, 100, 150, 1)
          
       end
+
+
+      renderMeasureBarsInSomeRect(canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight, canvasScale)
+      renderPlayHead(canvasX, canvasY +  (i-1)*canvasHeight, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
+
       
-      local settings = imgbutton('settings', ui.settings, margin + 10, topBarHeight + margin + canvasHeight - 32 - 10, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+      
+      love.graphics.setColor(r, g, b)
+      love.graphics.rectangle("fill", margin , topBarHeight + margin +  (i-1)*canvasHeight, instrWidth, canvasHeight)
+      
+      
+      love.graphics.setLineWidth(4)
+      love.graphics.setColor(0,0,0)
+      love.graphics.rectangle("line", margin , topBarHeight + margin + (i-1)*canvasHeight, instrWidth, canvasHeight)
+   
+      
+      local name = getInstrumentName(instruments[i].sounds[1].sample.path)
+      local nameWidth = getStringWidth(name)
+     -- print(name)
+      renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin + 32 + (i-1)*canvasHeight, margin+ 10, active and 1.0 or 0.25)
+      --local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10 , nameWidth, 20)
+      -- if label.clicked then
+      --    if activeInstrumentIndex == i then
+      --       activeInstrumentIndex = 0
+      --    else
+      --       activeInstrumentIndex = i
+      --    end
+         
+      -- end
+      
+      local settings = imgbutton('settings'..i, ui.settings, margin + instrWidth/4, topBarHeight  + instrWidth/4 +  margin +(i-1)*canvasHeight, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
       if settings.clicked then
-         print('toggle the settings fro this instrument', showSettingsForInstrumentIndex)
-         if (showSettingsForInstrumentIndex == 1) then
+         --print('toggle the settings fro this instrument', showSettingsForInstrumentIndex)
+         if (showSettingsForInstrumentIndex == i) then
             showSettingsForInstrumentIndex = 0
          else
-            showSettingsForInstrumentIndex = 1 -- moet i worden bij meer
+            activeInstrumentIndex = i
+            channel.main2audio:push ( {activeInstrumentIndex=i} )
+            showSettingsForInstrumentIndex = i -- moet i worden bij meer
+            
          end
-         
+         --print('should show settings for ', showSettingsForInstrumentIndex)
          
       end
       
-      imgbutton('volume', ui.volumeUp, instrWidth + margin - 48, topBarHeight + margin + canvasHeight/2 - 24, 48, 48,active and {1,1,1,1} or {1,1,1,0.25})
+      imgbutton('volume'..i, ui.volumeUp,margin + (instrWidth/4)*2.5 , topBarHeight + margin  + instrWidth/4   + (i-1)*canvasHeight, 42, 42,active and {1,1,1,1} or {1,1,1,0.25})
    end
+   
+   
+   -- if instruments and instruments[1] then
+   --    local name = getInstrumentName(instruments[1].sounds[1].sample.path)
+   --    local nameWidth = getStringWidth(name)
+   --    renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, active and 1.0 or 0.25)
+   --    local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, nameWidth, 20)
+   --    if label.clicked then
+   --       if activeInstrumentIndex == 1 then
+   --          activeInstrumentIndex = -1
+   --       else
+   --          activeInstrumentIndex = 1
+   --       end
+         
+   --    end
+      
+   --    local settings = imgbutton('settings', ui.settings, margin + 10, topBarHeight + margin + canvasHeight - 32 - 10, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+   --    if settings.clicked then
+   --       print('toggle the settings fro this instrument', showSettingsForInstrumentIndex)
+   --       if (showSettingsForInstrumentIndex == 1) then
+   --          showSettingsForInstrumentIndex = 0
+   --       else
+   --          showSettingsForInstrumentIndex = 1 -- moet i worden bij meer
+   --       end
+         
+         
+   --    end
+      
+   --    imgbutton('volume', ui.volumeUp, instrWidth + margin - 48, topBarHeight + margin + canvasHeight/2 - 24, 48, 48,active and {1,1,1,1} or {1,1,1,0.25})
+   -- end
+
+
+   
 
 
     
@@ -656,24 +707,36 @@ function love.draw()
    
  
    
-   
-   if instruments[1] and showSettingsForInstrumentIndex == 1 then
+   --print(#instruments)
+   --if instruments[1] and showSettingsForInstrumentIndex == 1 then
+   if showSettingsForInstrumentIndex > 0 then
 
-     
-      renderBrowser(browser, margin, screenH - 450, instrWidth, 425)
+      local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
+      local r,g,b =  HSL(hues[showSettingsForInstrumentIndex], 100, 150, 1)
+      love.graphics.setLineWidth(3)
+      love.graphics.setColor(r,g,b)
+
+      local tlx = margin + instrWidth
+      local tly = screenH/2 - (450-margin)/2
+      local w = screenW - instrWidth - margin*2
+      local h =  450-margin
+      love.graphics.rectangle('fill',tlx,tly,w, h)
+      
+      
+      renderBrowser(browser, tlx, tly, instrWidth, 425)
 
       
-      renderADSREnvelope(instruments[1].sounds[1].adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
+      renderADSREnvelope(instruments[showSettingsForInstrumentIndex].sounds[1].adsr, screenW - 250 - margin, tly+ 50, 250, 100)
       
 
       love.graphics.setColor(red[1],red[2],red[3])
-      love.graphics.setLineWidth(3)
+      
 
-      renderEQ(instruments[1].sounds[1].eq, canvasX + margin, screenH - (20 * 20))
+      renderEQ(instruments[showSettingsForInstrumentIndex].sounds[1].eq, tlx + instrWidth + 40, tly + 70)
 
 
       if renderSoundData then
-         renderWave( renderSoundData, canvasX + margin, screenH - 100, 300, 100)
+         renderWave( renderSoundData, tlx + instrWidth + 50, tly+h-50 -margin, 300, 100)
       end
       if playingSound then
          renderPlayingSoundBar( canvasX + margin, screenH - 100, 300, 100)
@@ -681,20 +744,22 @@ function love.draw()
 
       love.graphics.setColor(red[1],red[2],red[3])
       
-      renderInstrumentSettings(instruments[1], 670, screenH-400)
+      renderInstrumentSettings(instruments[showSettingsForInstrumentIndex], tlx + instrWidth  + 400, tly + 60)
 
-      renderLabel('fade out', canvasX + margin + 300 +200, screenH - 100)
-      knob = h_slider('fade out', canvasX + margin + 300, screenH - 100, 200, instruments[1].sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
-      if knob.value ~= nil then
-         instruments[1].sounds[1].eq.fadeout = knob.value
-         channel.main2audio:push ( {eq = instruments[1].sounds[1].eq} )
-      end
+      if renderSoundData then
+         renderLabel('fade out', canvasX + margin + 300 +200, screenH - 100)
+         knob = h_slider('fade out', canvasX + margin + 300, screenH - 100, 200, instruments[showSettingsForInstrumentIndex].sounds[1].eq.fadeout or 0, 0.0, renderSoundData:getDuration()-0.001 )
+         if knob.value ~= nil then
+            instruments[showSettingsForInstrumentIndex].sounds[1].eq.fadeout = knob.value
+            channel.main2audio:push ( {eq = instruments[1].sounds[1].eq} )
+         end
 
-      renderLabel('fade in', canvasX + margin + 300 + 200, screenH - 150)
-      knob = h_slider('fade in', canvasX + margin + 300, screenH - 150, 200, instruments[1].sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
-      if knob.value ~= nil then
-         instruments[1].sounds[1].eq.fadein = knob.value
-         channel.main2audio:push ( {eq = instruments[1].sounds[1].eq} )
+         renderLabel('fade in', canvasX + margin + 300 + 200, screenH - 150)
+         knob = h_slider('fade in', canvasX + margin + 300, screenH - 150, 200, instruments[showSettingsForInstrumentIndex].sounds[1].eq.fadein or 0, 0.0, renderSoundData:getDuration()-0.001 )
+         if knob.value ~= nil then
+            instruments[showSettingsForInstrumentIndex].sounds[1].eq.fadein = knob.value
+            channel.main2audio:push ( {eq = instruments[1].sounds[1].eq} )
+         end
       end
    end
    

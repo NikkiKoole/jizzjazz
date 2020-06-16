@@ -166,4 +166,6 @@ function loadAndFillInstrumentRaw(instrument)
          instrument.sounds[i].sample.sound = love.audio.newSource(s, 'static')
       end
    end
+
+   return instrument
 end

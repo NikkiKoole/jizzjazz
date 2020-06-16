@@ -17,7 +17,7 @@ local isPlaying = false
 local timeData = nil
 local beatAndBar = nil
 local timeSinceStartPlay = 0
-
+local activeInstrumentIndex = 1
 local recordingNotes = {}
 local notes = {}
 local triggeredPlayNotes = {}
@@ -42,14 +42,24 @@ end
 
 function loadAndFillInstrument(instrument)
    loadAndFillInstrumentRaw(instrument)
-    love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
-   love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
+   --love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
+   --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
 end
 
 
 local instruments = {}
-instruments[1] = getDefaultInstrument()
-loadAndFillInstrument(instruments[1])
+instruments[1] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+instruments[2] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+instruments[3] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+instruments[4] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+instruments[5] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+--instruments[6] =  loadAndFillInstrumentRaw(getDefaultInstrument())
+
+--love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
+love.thread.getChannel( 'audio2main' ):push({instruments=instruments})
+--loadAndFillInstrument(instruments[1])
+--instruments[2] = getDefaultInstrument()
+--loadAndFillInstrument(instruments[2])
 
 activeSources = {}
 pitches = fillPitches()
@@ -64,11 +74,11 @@ end
 
 function playNote(semitone, velocity, instrument, length )
 
-   local settings = instruments[1].settings
+   local settings = instrument.settings
    
    
-   local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instruments[1]) 
-   local transpose = instruments[1].settings.transpose
+   local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instruments[activeInstrumentIndex]) 
+   local transpose = instrument.settings.transpose
    local adsr = sound.adsr
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
@@ -287,7 +297,6 @@ end
 
 function handleMIDIInput()
    if luamidi and luamidi.getinportcount() > 0 then
-      --print('yo')
       local a, b, c, d = nil
       a,b,c,d = luamidi.getMessage(0)
       --https://en.wikipedia.org/wiki/List_of_chords
@@ -300,13 +309,12 @@ function handleMIDIInput()
          -- look for an NoteON command
 
          if a == 144 then
-            --print('midi message play', b)
-            playNote(b, c, instruments[1])
+            playNote(b, c, instruments[activeInstrumentIndex])
             if isPlaying and isRecording then
                recordPlayedNote(b, c)
             end
          elseif a == 128 then
-            stopNote(b, instruments[1])
+            stopNote(b, instruments[activeInstrumentIndex])
             if isPlaying and isRecording then
                recordStoppedNote(b)
                
@@ -336,6 +344,10 @@ function handleThreadInput()
    local v = channel.main2audio:pop();
    if v then
 
+      if v.activeInstrumentIndex ~= nil then
+         activeInstrumentIndex = v.activeInstrumentIndex
+      end
+      
       if v.metronomeOn ~= nil then
          metronomeOn = v.metronomeOn
       end
@@ -378,16 +390,21 @@ function handleThreadInput()
       end
 
       if v.instrument then
-         instruments[1] = v.instrument
+         --print('hello')
+
+      --   instruments[1] = v.instrument
       end
       
       if v.loadInstrument then
-         instruments[1] = v.loadInstrument
-         loadAndFillInstrument(instruments[1])
+         --print('hi')
+         
+         instruments[activeInstrumentIndex] = loadAndFillInstrumentRaw(v.loadInstrument)
+         love.thread.getChannel( 'audio2main' ):push({instruments=instruments})
+         --loadAndFillInstrument(instruments[1])
       end
       
       if v.adsr then
-         instruments[1].sounds[1].adsr = v.adsr
+         instruments[activeInstrumentIndex].sounds[1].adsr = v.adsr
       end
 
       if v.instrumentStartEnd then
@@ -407,14 +424,15 @@ function handleThreadInput()
       end
       
       if v.osc  then
-         instruments[1] =  getDefaultInstrument()
+         instruments[activeInstrumentIndex] =  getDefaultInstrument()
          
-         instruments[1].settings.useVanillaLooping = true
-         instruments[1].sounds[1].sample.loopStart= nil
-         instruments[1].sounds[1].sample.loopEnd= nil
-         instruments[1].sounds[1].sample.loopPointParts = nil
-         instruments[1].sounds[1].sample.path = v.osc
-         loadAndFillInstrument(instruments[1])
+         instruments[activeInstrumentIndex].settings.useVanillaLooping = true
+         instruments[activeInstrumentIndex].sounds[1].sample.loopStart= nil
+         instruments[activeInstrumentIndex].sounds[1].sample.loopEnd= nil
+         instruments[activeInstrumentIndex].sounds[1].sample.loopPointParts = nil
+         instruments[activeInstrumentIndex].sounds[1].sample.path = v.osc
+         loadAndFillInstrument(instruments[activeInstrumentIndex])
+         love.thread.getChannel( 'audio2main' ):push({instruments=instruments})
        
       end
       
@@ -549,6 +567,8 @@ while(run ) do
       -- glide / portamento
       
       local newPitch = pitch
+
+
       
       if settings.glide then
          if activeSources[i].glideFromPitch then
@@ -643,7 +663,7 @@ while(run ) do
          for t = #triggeredPlayNotes, 1, -1 do
             local p = triggeredPlayNotes[t]
             if ((p.startTick + p.length) == wholeTick) then
-               stopNote(p.key, instruments[1])
+               stopNote(p.key, instruments[activeInstrumentIndex])
                table.remove(triggeredPlayNotes, t)
             end
          end
@@ -652,7 +672,7 @@ while(run ) do
          if notes[wholeTick] ~= nil then
             for i = 1, #notes[wholeTick] do
                local n = notes[wholeTick][i]
-               playNote(n.key, n.velocity, instruments[1])
+               playNote(n.key, n.velocity, instruments[activeInstrumentIndex])
                table.insert(triggeredPlayNotes, n)
             end
          end
