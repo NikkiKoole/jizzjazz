@@ -260,7 +260,8 @@ function love.load()
       volumeMute = love.graphics.newImage("resources/icons/volume_mute.png"),
       volumeUp = love.graphics.newImage("resources/icons/volume_up.png"),
       equalizer = love.graphics.newImage("resources/icons/equalizer.png"),
-      settings = love.graphics.newImage("resources/icons/settings.png")
+      settings = love.graphics.newImage("resources/icons/settings.png"),
+      eraser = love.graphics.newImage("resources/icons/eraser.png")
     }
    
    --musicBar = createMusicBar()
@@ -461,6 +462,13 @@ function love.draw()
    handleMouseClickStart()
    love.graphics.clear(0.93, 0.89, 0.74)
 
+   if isPlaying and isRecording then
+      love.graphics.setColor(1,0,0)
+      love.graphics.rectangle("fill",0,0,screenW, 64)
+   end
+   
+
+   
    love.graphics.setColor(0.2, 0.2, 0.2)
    love.graphics.print(tostring(love.timer.getFPS( )), 10, 10)
    love.graphics.setColor(1,1,1)
@@ -480,6 +488,11 @@ function love.draw()
    
   
     
+   local eraser = imgbutton('erase', ui.eraser, 1000 , 10  , 42, 42)
+   if eraser.clicked then
+      notes[activeInstrumentIndex] ={}
+      channel.main2audio:push ( {notes=notes} )
+   end
    
  
    
@@ -506,8 +519,50 @@ function love.draw()
          
       end
 
-
+      if activeInstrumentIndex == i then
+         love.graphics.setColor(r,g,b)
+         love.graphics.rectangle('fill',canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight)
+      end
+      
+      
       renderMeasureBarsInSomeRect(canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight, canvasScale)
+--      print(inspect(notes[i]))
+      if notes[i] then
+      for k,v in pairs(notes[i]) do
+         for t,vv in pairs(v) do
+            --if not vv.stop then
+               local x = canvasX + (k*canvasScale)
+               
+               --local y = canvasY + amount*10   - (vv.key-startKey)*10
+               local y = canvasY + (i-1)*canvasHeight + canvasHeight - vv.key
+               local w = vv.length * canvasScale
+               local h = canvasScale * 8
+               love.graphics.rectangle("fill", x,y,w,h)
+            --end
+         end
+      end
+      end
+      -- function renderPianoRollNotes()
+      -- love.graphics.setColor(0.5,0.5,0.5)
+      -- local startKey = 36 -- this is a C4
+      -- local octaves = 5
+      -- local amount = (12 * octaves)-1
+
+      -- for k,v in pairs(notes) do
+      --    for t,vv in pairs(v) do
+      --       if not vv.stop then
+      --          local x = canvasX + (k*canvasScale)
+               
+      --          local y = canvasY + amount*10   - (vv.key-startKey)*10
+      --          local w = vv.length * canvasScale
+      --          local h = 10
+      --          love.graphics.rectangle("fill", x,y,w,h)
+      --       end
+      --    end
+      -- end
+      -- end
+      
+      
       renderPlayHead(canvasX, canvasY +  (i-1)*canvasHeight, canvasWidth, canvasHeight, lastTick or 0, canvasScale)
 
       
@@ -523,18 +578,14 @@ function love.draw()
       
       local name = getInstrumentName(instruments[i].sounds[1].sample.path)
       local nameWidth = getStringWidth(name)
-      renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin + 32 + (i-1)*canvasHeight, margin+ 10, active and 1.0 or 0.25)
-      --local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10 , nameWidth, 20)
-      -- if label.clicked then
-      --    if activeInstrumentIndex == i then
-      --       activeInstrumentIndex = 0
-      --    else
-      --       activeInstrumentIndex = i
-      --    end
-         
-      -- end
-      
-      local settings = imgbutton('settings'..i, ui.settings, margin + instrWidth/4, topBarHeight  + instrWidth/4 +  margin +(i-1)*canvasHeight, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+      renderLabel(name,
+                  margin + instrWidth/2 - nameWidth/2,
+                  topBarHeight + margin + 32 + (i-1)*canvasHeight,
+                  margin+ 10, active and 1.0 or 0.25)
+      local settings = imgbutton('settings'..i,
+                                 ui.settings, margin + instrWidth/4,
+                                 topBarHeight  + instrWidth/4 +  margin +(i-1)*canvasHeight,
+                                 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
       if settings.clicked then
 
          if (showSettingsForInstrumentIndex == i) then

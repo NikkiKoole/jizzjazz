@@ -101,7 +101,7 @@ function playNote(semitone, velocity, instrument, length )
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
 
-   local alreadyInUseIndex = getFirstInActiveSource(instrument)
+   local alreadyInUseIndex = getFirstInActiveSource(instrument) -- this should also be done with a channel index instead
    
    if (settings.glide or settings.monophonic) and #activeSources > 0 and alreadyInUseIndex > 0 then
       local index = alreadyInUseIndex --findIndexFirstNonEchoNote()
@@ -204,9 +204,12 @@ end
 
 function stopNote(semitone, instrument)
    
-
+   -- todo lets just send the appropriate channel indexes from somewhere
    for i=1, #activeSources do
-      if semitone == activeSources[i].key then
+      -- and( instrument == activeSources[i].instrument)
+      --print(instrument == activeSources[i].instrument)
+      --print('tryna stop ', semitone,  (instrument == activeSources[i].instrument), instrument.sounds[1].sample.path)
+      if semitone == activeSources[i].key and (instrument == activeSources[i].instrument) then
          
          if instrument.settings.useSustain == true then
             activeSources[i].noteOffTime = now
@@ -214,6 +217,8 @@ function stopNote(semitone, instrument)
          end
 
          activeSources[i].released = true
+         --print('did stop ', semitone)
+
       end
    end
 end
@@ -311,7 +316,7 @@ function recordStoppedNote(b)
       end
       
       recordingNotes[b] = nil
-      love.thread.getChannel( 'audio2main' ):push({notes=notes})
+      love.thread.getChannel( 'audio2main' ):push({notes=notesPerChannel})
    end
 end
 
@@ -410,6 +415,11 @@ function handleThreadInput()
          love.thread.getChannel( 'audio2main' ):push('quit')
       end
 
+
+      if v.notes then
+         notesPerChannel = v.notes
+      end
+      
       if v.instrument then
          instruments[activeInstrumentIndex] = v.instrument
       end
@@ -673,7 +683,7 @@ while(run ) do
             for t = #triggeredPlayNotes, 1, -1 do
                local p = triggeredPlayNotes[t]
                if ((p.startTick + p.length) == wholeTick) then
-                  stopNote(p.key, instruments[j])
+                  stopNote(p.key, instruments[p.channel])
                   table.remove(triggeredPlayNotes, t)
                end
             end
@@ -682,6 +692,8 @@ while(run ) do
             if notesPerChannel[j][wholeTick] ~= nil then
                for i = 1, #notesPerChannel[j][wholeTick] do
                   local n = notesPerChannel[j][wholeTick][i]
+                  --print(inspect(n), j)
+                  n.channel = j
                   playNote(n.key, n.velocity, instruments[j])
                   table.insert(triggeredPlayNotes, n)
                end

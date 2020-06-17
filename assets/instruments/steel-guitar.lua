@@ -1,9 +1,12 @@
+function dir(p)
+   return "assets/samples/acoustic guitars/mixed/"..p
+end
 
 return {
    settings = {
       useVanillaLooping = false,   -- whne creating the sound this decides static or queue 
       glide = false,        -- glide is always monophonic
-      glideDuration = .5,
+      glideDuration = .15,
       monophonic = false,
       useSustain = true,
       vibrato = false,
@@ -13,7 +16,11 @@ return {
       usePitchForADSR = false,
    },
    sounds = {
-      {sample = {path="assets/samples/Upright Bass F#2.wav", root=30 + 24, loopStart=6376,loopEnd=6676}},
+      {sample = {path=dir("ST2_40B.wav"),  root=40}},
+      {sample = {path=dir("ST2_45B.wav"),  root=45}},
+      {sample = {path=dir("ST2_52B.wav"),  root=52}},
+      {sample = {path=dir("ST2_57B.wav"),  root=57}},
+      {sample = {path=dir("ST2_65B.wav"),  root=65}},
    }
 }
 
