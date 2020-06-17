@@ -20,7 +20,7 @@ function getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
             bestScored = instrument.sounds[i]
          end
       end
---      print('picked', bestScored.sample.path)
+      print('picked', bestScored.sample.path)
       return bestScored
    end
 end

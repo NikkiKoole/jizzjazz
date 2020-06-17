@@ -211,14 +211,7 @@ function love.mousereleased(x,y)
                                browser.kind)
       end
    end
-   --if handleBrowserClick(instrumentBrowser, x,y) then
-      -- instrumentBrowser = fileBrowser(browser.root, browser.subdirs,
-      --                           browser.allowedExtensions,
-      --                           browser.kind)
-   --end
    
-   --print(inspect(instrumentBrowser), 'poep!')
-   --instrumentBrowser = handleBrowserClick(instrumentBrowser, x,y)
    if lastDraggedElement then
       if lastDraggedElement.id == 'startPos' or lastDraggedElement.id == 'endPos' then
          channel.main2audio:push( {instrumentStartEnd=instrument} );
@@ -233,8 +226,7 @@ end
 
 
 function love.mousemoved(x,y,dx,dy)
-   --print(inspect(musicBar.dict))
-   
+  
    --handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
 end
 
@@ -331,13 +323,9 @@ function love.load()
                signatureUnit=4,}
    isPlaying = false
    isRecording = false
-   --print(inspect(instrument))
-   
 
    channel.main2audio:push( {timeData=timeData} );
    channel.main2audio:push( {beatAndBar=beatAndBar} );
-   --pus
-   --print(inspect(browser))
 
    metronomeOn = false   
    topBarHeight = 96
@@ -372,21 +360,6 @@ function round(num, numDecimalPlaces)
    return math.floor(num * mult + 0.5) / mult
 end
 
-function  pasteNoteNowUsingLastPressed()
-   if lastTick and lastHitSemitone then
-      local current = notes[lastTick]
-      if current then
-         table.insert(notes[lastTick], {key=lastHitSemitone, length=96, startTick=lastTick})
-         --print('foundsomethign already', inspect(current))
-      else
-         current = {{key=lastHitSemitone, length=96, startTick=lastTick}}
-         notes[lastTick] = current
-      end
-
-   else
---      print(lastTick, lastHitSemitone)
-   end
-end
 
 
  function renderPianoRollNotes()
@@ -394,8 +367,7 @@ end
       local startKey = 36 -- this is a C4
       local octaves = 5
       local amount = (12 * octaves)-1
-      --print(amount)
-      --print(inspect(notes))
+
       for k,v in pairs(notes) do
          for t,vv in pairs(v) do
             if not vv.stop then
@@ -416,8 +388,6 @@ end
       local whites = {0,2,4,5,7,9,11}
       local amount = (12 * octaves)
       
-      --print((12 * octaves)-1)
-
       love.graphics.setColor(0.2,0.2,0.2,0.2)
       love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*10)
 
@@ -553,7 +523,6 @@ function love.draw()
       
       local name = getInstrumentName(instruments[i].sounds[1].sample.path)
       local nameWidth = getStringWidth(name)
-     -- print(name)
       renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin + 32 + (i-1)*canvasHeight, margin+ 10, active and 1.0 or 0.25)
       --local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10 , nameWidth, 20)
       -- if label.clicked then
@@ -567,53 +536,20 @@ function love.draw()
       
       local settings = imgbutton('settings'..i, ui.settings, margin + instrWidth/4, topBarHeight  + instrWidth/4 +  margin +(i-1)*canvasHeight, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
       if settings.clicked then
-         --print('toggle the settings fro this instrument', showSettingsForInstrumentIndex)
+
          if (showSettingsForInstrumentIndex == i) then
             showSettingsForInstrumentIndex = 0
          else
             activeInstrumentIndex = i
             channel.main2audio:push ( {activeInstrumentIndex=i} )
-            showSettingsForInstrumentIndex = i -- moet i worden bij meer
-            
+            showSettingsForInstrumentIndex = i 
          end
-         --print('should show settings for ', showSettingsForInstrumentIndex)
-         
       end
       
       imgbutton('volume'..i, ui.volumeUp,margin + (instrWidth/4)*2.5 , topBarHeight + margin  + instrWidth/4   + (i-1)*canvasHeight, 42, 42,active and {1,1,1,1} or {1,1,1,0.25})
    end
    
-   
-   -- if instruments and instruments[1] then
-   --    local name = getInstrumentName(instruments[1].sounds[1].sample.path)
-   --    local nameWidth = getStringWidth(name)
-   --    renderLabel(name,  margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, active and 1.0 or 0.25)
-   --    local label =  getUIRect( 'signature', margin + instrWidth/2 - nameWidth/2,  topBarHeight + margin+ 10, nameWidth, 20)
-   --    if label.clicked then
-   --       if activeInstrumentIndex == 1 then
-   --          activeInstrumentIndex = -1
-   --       else
-   --          activeInstrumentIndex = 1
-   --       end
-         
-   --    end
-      
-   --    local settings = imgbutton('settings', ui.settings, margin + 10, topBarHeight + margin + canvasHeight - 32 - 10, 32, 32,active and {1,1,1,1} or {1,1,1,0.25})
-   --    if settings.clicked then
-   --       print('toggle the settings fro this instrument', showSettingsForInstrumentIndex)
-   --       if (showSettingsForInstrumentIndex == 1) then
-   --          showSettingsForInstrumentIndex = 0
-   --       else
-   --          showSettingsForInstrumentIndex = 1 -- moet i worden bij meer
-   --       end
-         
-         
-   --    end
-      
-   --    imgbutton('volume', ui.volumeUp, instrWidth + margin - 48, topBarHeight + margin + canvasHeight/2 - 24, 48, 48,active and {1,1,1,1} or {1,1,1,0.25})
-   -- end
-
-
+  
    
 
 
@@ -676,7 +612,6 @@ function love.draw()
       if changed then
          -- the signature has changed
          -- bar and beat need recalculating
-         --print(lastTick)
          local ticksPerUnit = 96 / (timeData.signatureUnit/4)
          local newBeat = lastTick / ticksPerUnit
          newBeat = math.ceil(newBeat)
@@ -684,7 +619,6 @@ function love.draw()
          
          beatAndBar.beat = newBeat %  timeData.signatureBeatPerBar
          beatAndBar.bar = newBar
-         --print(inspect(timeData))
          channel.main2audio:push ( {timeData=timeData} )
          channel.main2audio:push ( {beatAndBar=beatAndBar} )
          
@@ -705,10 +639,6 @@ function love.draw()
    
    --renderBrowser(instrumentBrowser, 40, 200)
    
- 
-   
-   --print(#instruments)
-   --if instruments[1] and showSettingsForInstrumentIndex == 1 then
    if showSettingsForInstrumentIndex > 0 then
 
       local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}

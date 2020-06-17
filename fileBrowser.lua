@@ -18,11 +18,6 @@ end
 
 function handleFileBrowserWheelMoved(browser, a,b)
    browser.scrollTop = browser.scrollTop + b
-   --print(browser.amount)
-   --if browser.scrollTop > #browser.all - (browser.amount or 10) then
-   --   browser.scrollTop = #browser.all - (browser.amount or 10)
-   --end
-   
    if browser.scrollTop < 0 then browser.scrollTop = 0 end
    if browser.scrollTop > #browser.all then browser.scrollTop = #browser.all end
    browser.scrollTop = math.floor(browser.scrollTop)
@@ -120,13 +115,11 @@ function handleBrowserClick(browser,x,y)
    --if not browser.x or not browser.y then return end
    local result = false
    if x> browser.x and x < browser.x+200 and y > browser.y then
-      --print(inspect(browser))
-
+      
       local index = math.floor((y-browser.y)/20) + 1
       index = index + browser.scrollTop
       
       local thing = browser.all[index]
-      print(index, inspect(thing))
       if index > #browser.all then return end
       if not thing then return end
       if thing.type == 'directory' then
@@ -142,17 +135,12 @@ function handleBrowserClick(browser,x,y)
          if thing.path then
             browser.lastClickedFile = thing.path
             if ends_with(thing.path, 'wav') or ends_with(thing.path, 'WAV') then
-               --if browser.kind == 'wav' then
-               --print(inspect(instr))
                channel.main2audio:push({osc= path..'/'..thing.path})
             end
             if ends_with(thing.path, 'lua') then
-            --if browser.kind == 'instrument' then
                contents, size = love.filesystem.read( path..'/'..thing.path )
                local instr = (loadstring(contents)())
-               print(inspect(instr))
                channel.main2audio:push({loadInstrument=instr})
-
             end
             
             

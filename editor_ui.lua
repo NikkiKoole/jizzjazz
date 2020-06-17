@@ -139,7 +139,6 @@ function renderInstrumentSettings(instrument, x, y)
 
    if knob.value ~= nil then
       instrument.settings.useVanillaLooping = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
@@ -157,7 +156,6 @@ function renderInstrumentSettings(instrument, x, y)
    knob = drawToggle('useSustain', x,y+ 80, instrument.settings.useSustain)
    if knob.value ~= nil then
       instrument.settings.useSustain = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
@@ -165,35 +163,29 @@ function renderInstrumentSettings(instrument, x, y)
    knob = drawToggle('mono', x,y+ 120, instrument.settings.monophonic)
    if knob.value ~= nil then
       instrument.settings.monophonic = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
    knob = drawToggle('vibrato', x,y+ 160, instrument.settings.vibrato)
    if knob.value ~= nil then
       instrument.settings.vibrato = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
    knob = drawToggle('adsr pitch', x,y+ 200, instrument.settings.usePitchForADSR)
    if knob.value ~= nil then
       instrument.settings.usePitchForADSR = knob.value
-      --print(k.value)
       channel.main2audio:push( {instrument=instrument} );
    end
 
    knob = draw_knob('vibratoSpeed', x+150,y+ 170, instrument.settings.vibratoSpeed, 0.001, 16* 6)
    if knob.value ~= nil then
       instrument.settings.vibratoSpeed = knob.value
-      --print(k.value)
-      print(instrument.settings.vibratoSpeed)
+      --print(instrument.settings.vibratoSpeed)
       channel.main2audio:push( {instrument=instrument} );
    end
    knob = draw_knob('vibratoStrength', x+200,y+ 170, instrument.settings.vibratoStrength, 0.1, 5)
    if knob.value ~= nil then
       instrument.settings.vibratoStrength = knob.value
-      --print(k.value)
-      --      print(instrument.settings.vibratoStrength)
       channel.main2audio:push( {instrument=instrument} );
    end
    

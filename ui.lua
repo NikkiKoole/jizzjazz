@@ -23,7 +23,6 @@ end
 
 function getMouseWheelableArea(id, x,y, w, h)
    local mx, my = love.mouse:getPosition()
-  -- print(inspect(love.mouse))
 end
 
 
