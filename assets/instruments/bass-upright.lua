@@ -9,7 +9,7 @@ return {
       vibrato = false,
       vibratoSpeed = 96/16,
       vibratoStrength = 10,  -- this should be in semitones
-      transpose = 0,
+      transpose = 2,
       usePitchForADSR = false,
    },
    sounds = {

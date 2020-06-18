@@ -261,7 +261,8 @@ function love.load()
       volumeUp = love.graphics.newImage("resources/icons/volume_up.png"),
       equalizer = love.graphics.newImage("resources/icons/equalizer.png"),
       settings = love.graphics.newImage("resources/icons/settings.png"),
-      eraser = love.graphics.newImage("resources/icons/eraser.png")
+      eraser = love.graphics.newImage("resources/icons/eraser.png"),
+      save = love.graphics.newImage("resources/icons/save.png")
     }
    
    --musicBar = createMusicBar()
@@ -340,7 +341,7 @@ function love.load()
    lastTick = 0
 
 
-   activeInstrumentIndex = 1
+   activeChannelIndex = 1
 
    showSettingsForInstrumentIndex = 0
 end
@@ -454,7 +455,27 @@ local function rgbToHsl(r, g, b)
     end
     return h * .16667, s, l
 end
-  
+
+
+function love.filedropped(file)
+   local filename = file:getFilename()
+   if stringEndsWith(filename, '.notes') then
+
+      local str = file:read('string')
+      local tab = (loadstring("return ".. str)())
+
+      for i =1, #tab do
+         --print(tab[i].path)
+         notes[i] = tab[i].notes
+         
+      end
+      channel.main2audio:push ( {notes=notes} )
+      --print(inspect(tab))
+   end
+   
+end
+
+
 function love.draw()
    love.graphics.setFont(font)
    local screenW, screenH = love.graphics.getDimensions()
@@ -490,8 +511,23 @@ function love.draw()
     
    local eraser = imgbutton('erase', ui.eraser, 1000 , 10  , 42, 42)
    if eraser.clicked then
-      notes[activeInstrumentIndex] ={}
+      notes[activeChannelIndex] ={}
       channel.main2audio:push ( {notes=notes} )
+   end
+
+   local save = imgbutton('save', ui.save, 1100 , 10  , 42, 42)
+   if save.clicked then
+      local channels = {}
+      for i = 1, #instruments do
+         local thing = {}
+         thing.path = instruments[i].path
+         thing.notes = notes[i]
+         channels[i] = thing
+      end
+      love.filesystem.write(os.date("%Y%m%d%H%M%S.notes"), inspect(channels, {indent=""}))
+      love.system.openURL("file://"..love.filesystem.getSaveDirectory())
+      
+     
    end
 
 
@@ -523,7 +559,7 @@ function love.draw()
 
 
       local r,g,b =  HSL(hue, 25, 75, 1)
-      local active = activeInstrumentIndex == i
+      local active = activeChannelIndex == i
       if active then
          r,g,b =  HSL(hue, 100, 150, 1)
          
@@ -532,14 +568,14 @@ function love.draw()
 
       local label =  getUIRect( 'signat'..i, margin, canvasY  + (i-1)*canvasHeight, instrWidth, canvasHeight)
       if label.clicked then
-         activeInstrumentIndex = i
-         channel.main2audio:push ( {activeInstrumentIndex=i} )
+         activeChannelIndex = i
+         channel.main2audio:push ( {activeChannelIndex=i} )
 
       end
 
 
    
-      if activeInstrumentIndex == i then
+      if activeChannelIndex == i then
          love.graphics.setColor(r,g,b)
          love.graphics.rectangle('fill',canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight)
       end
@@ -596,7 +632,8 @@ function love.draw()
       love.graphics.rectangle("line", margin , topBarHeight + margin + (i-1)*canvasHeight, instrWidth, canvasHeight)
    
       
-      local name = getInstrumentName(instruments[i].sounds[1].sample.path)
+      --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
+      local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
       local nameWidth = getStringWidth(name)
       renderLabel(name,
                   margin + instrWidth/2 - nameWidth/2,
@@ -611,8 +648,8 @@ function love.draw()
          if (showSettingsForInstrumentIndex == i) then
             showSettingsForInstrumentIndex = 0
          else
-            activeInstrumentIndex = i
-            channel.main2audio:push ( {activeInstrumentIndex=i} )
+            activeChannelIndex = i
+            channel.main2audio:push ( {activeChannelIndex=i} )
             showSettingsForInstrumentIndex = i 
          end
       end

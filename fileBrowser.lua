@@ -135,12 +135,12 @@ function handleBrowserClick(browser,x,y)
          if thing.path then
             browser.lastClickedFile = thing.path
             if ends_with(thing.path, 'wav') or ends_with(thing.path, 'WAV') then
-               channel.main2audio:push({osc= path..'/'..thing.path})
+               channel.main2audio:push({osc= {path=thing.path, fullPath=path..'/'..thing.path}})
             end
             if ends_with(thing.path, 'lua') then
                contents, size = love.filesystem.read( path..'/'..thing.path )
                local instr = (loadstring(contents)())
-               channel.main2audio:push({loadInstrument=instr})
+               channel.main2audio:push({loadInstrument={instrument=instr, path=thing.path}})
             end
             
             
