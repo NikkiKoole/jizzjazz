@@ -180,12 +180,12 @@ function playNote(semitone, velocity, instrument, length )
          end
       end
 
-      -- if length ~= nil then
+      if length ~= nil then
          
-      --    local perS = ( (timeData.tempo / 60) * 96) -- what you would use in 1 second
-      --    s.noteOffTime = now  + (length / perS)
+          local perS = ( (timeData.tempo / 60) * 96) -- what you would use in 1 second
+          s.noteOffTime = now  + (length / perS)
       --    s.noteOffVolume = 0.5  -- todo!
-      -- end
+      end
       
       
       s.sound:setPitch(getPitch(s))
@@ -339,6 +339,7 @@ function handleMIDIInput()
             if isPlaying and isRecording then
                recordPlayedNote(b, c)
             end
+            lastHitMIDISemitone = b
          elseif a == 128 then
             stopNote(b, instruments[activeInstrumentIndex])
             if isPlaying and isRecording then
@@ -371,6 +372,18 @@ function handleThreadInput()
    if v then
 
       if v.activeInstrumentIndex ~= nil then
+         -- this tries to stop sounds that will get stuck after the switch
+         -- this also needs to be doen when changin an instrument on the same channel
+         for i = 1, #activeSources do
+            if activeSources[i].key == lastHitMIDISemitone then
+               if activeSources[i].noteOffTime == -1 then
+                  activeSources[i].noteOffTime = now
+                  activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
+                  activeSources[i].released = true
+               end
+            end
+         end
+         
          activeInstrumentIndex = v.activeInstrumentIndex
       end
       

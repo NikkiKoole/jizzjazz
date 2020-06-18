@@ -493,17 +493,27 @@ function love.draw()
       notes[activeInstrumentIndex] ={}
       channel.main2audio:push ( {notes=notes} )
    end
+
+
+   -- try and make this thing exactly 2 bars wide
+   --print(canvasScale)
+   -- timeData.signatureBeatPerBar
+   -- timeData.signatureUnit
+
+   local ticksPerUnit = 96 / (timeData.signatureUnit/4)
+   local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
+   local loopWidth = 2 * tickPerBar * canvasScale
    
- 
-   
-  
-  
+   love.graphics.setColor(207/255,117/255,0/255)
+   love.graphics.rectangle("fill", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+   love.graphics.setColor(0,0,0)
+   love.graphics.rectangle("line", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
 
    -- renderVerticalPianoRoll(canvasX-30, canvasY, 30)
    -- renderPianoRollNotes()
 
    
-
+   
 
    for i = 1, #instruments do
 
@@ -519,6 +529,16 @@ function love.draw()
          
       end
 
+
+      local label =  getUIRect( 'signat'..i, margin, canvasY  + (i-1)*canvasHeight, instrWidth, canvasHeight)
+      if label.clicked then
+         activeInstrumentIndex = i
+         channel.main2audio:push ( {activeInstrumentIndex=i} )
+
+      end
+
+
+   
       if activeInstrumentIndex == i then
          love.graphics.setColor(r,g,b)
          love.graphics.rectangle('fill',canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight)
@@ -528,9 +548,9 @@ function love.draw()
       renderMeasureBarsInSomeRect(canvasX, canvasY  + (i-1)*canvasHeight, canvasWidth, canvasHeight, canvasScale)
 --      print(inspect(notes[i]))
       if notes[i] then
-      for k,v in pairs(notes[i]) do
-         for t,vv in pairs(v) do
-            --if not vv.stop then
+         for k,v in pairs(notes[i]) do
+            for t,vv in pairs(v) do
+               --if not vv.stop then
                local x = canvasX + (k*canvasScale)
                
                --local y = canvasY + amount*10   - (vv.key-startKey)*10
@@ -538,9 +558,9 @@ function love.draw()
                local w = vv.length * canvasScale
                local h = canvasScale * 8
                love.graphics.rectangle("fill", x,y,w,h)
-            --end
+               --end
+            end
          end
-      end
       end
       -- function renderPianoRollNotes()
       -- love.graphics.setColor(0.5,0.5,0.5)
