@@ -23,7 +23,7 @@ local triggeredPlayNotes = {}
 local notesPerChannel = {{},{},{},{},{},{}}
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 local metronomeOn = false
-
+local preroll = false
 
 
 
@@ -405,6 +405,9 @@ function handleThreadInput()
       if v.metronomeOn ~= nil then
          metronomeOn = v.metronomeOn
       end
+       if v.preroll ~= nil then
+         preroll = v.preroll
+      end
       
       if v.isRecording ~= nil then
          isRecording = v.isRecording
@@ -425,7 +428,18 @@ function handleThreadInput()
       
       if v.stepBackTime then
          timeSinceStartPlay = 0
-         lastTick = 0
+
+         if (preroll) then
+            local unitsPerBar = timeData.signatureBeatPerBar 
+            local ticksPerUnit =  96 / (timeData.signatureUnit/4)
+            lastTick = -(ticksPerUnit * unitsPerBar)
+            beatAndBar.bar = 0
+            love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
+
+         else
+            lastTick = 0
+         end
+         
       end
       
       if (v == 'quit') then
@@ -686,16 +700,19 @@ while(run ) do
    now = n
    time = time + delta
 
+   local pulses_per_quarter_note = 96
+   local unitsPerBar = timeData.signatureBeatPerBar 
+   local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
+   local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
+   local loopWidth = 4 * tickPerBar
    if isPlaying==true then
 
       timeSinceStartPlay = timeSinceStartPlay + delta
 
-      local pulses_per_quarter_note = 96
+     
       local tickdelta = (delta * (timeData.tempo / 60) * 96)
       local tick = lastTick + tickdelta
-      
-      local unitsPerBar = timeData.signatureBeatPerBar 
-      local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
+
 
       
       if math.floor(tick) - math.floor(lastTick) > 1 then
@@ -747,11 +764,22 @@ while(run ) do
                metronomeBeat:setPitch(pitch)
                metronomeBeat:play()
             end
+            --if lastTick >= 0 then
             love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
+            --end
          end
       end
 
       lastTick = tick
+
+      -- doing the loop
+      if lastTick > loopWidth then
+         lastTick = 0
+         beatAndBar.beat = 1
+         beatAndBar.bar = 1
+         love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
+      end
+      
       
    end
    

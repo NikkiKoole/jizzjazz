@@ -262,7 +262,8 @@ function love.load()
       equalizer = love.graphics.newImage("resources/icons/equalizer.png"),
       settings = love.graphics.newImage("resources/icons/settings.png"),
       eraser = love.graphics.newImage("resources/icons/eraser.png"),
-      save = love.graphics.newImage("resources/icons/save.png")
+      save = love.graphics.newImage("resources/icons/save.png"),
+      preroll = love.graphics.newImage("resources/icons/preroll.png")
     }
    
    --musicBar = createMusicBar()
@@ -329,6 +330,7 @@ function love.load()
    channel.main2audio:push( {timeData=timeData} );
    channel.main2audio:push( {beatAndBar=beatAndBar} );
 
+   preroll = false
    metronomeOn = false   
    topBarHeight = 96
    margin = 32
@@ -538,7 +540,7 @@ function love.draw()
 
    local ticksPerUnit = 96 / (timeData.signatureUnit/4)
    local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
-   local loopWidth = 2 * tickPerBar * canvasScale
+   local loopWidth = 4 * tickPerBar * canvasScale
    
    love.graphics.setColor(207/255,117/255,0/255)
    love.graphics.rectangle("fill", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
@@ -658,8 +660,28 @@ function love.draw()
    end
    
   
-   
+   local fullCanvasScale = (canvasWidth / tickPerBar)
 
+   local drumX = margin + instrWidth
+   local drumY = margin + topBarHeight
+   local drumWidth = tickPerBar * fullCanvasScale
+   
+   local drumAmount = 16
+   local scaledWidth = math.min((drumWidth/drumAmount), 48)
+
+   -- love.graphics.setColor(1,1,1)
+   -- love.graphics.rectangle("fill",drumX , drumY ,scaledWidth*drumAmount, scaledWidth * 12)
+
+   
+   -- love.graphics.setColor(0,0,0, 0.2)
+   -- for j = 1, 12 do
+   --    for i = 1, drumAmount do
+   --       love.graphics.rectangle("line", drumX + (i-1)*scaledWidth, drumY + (j-1)*scaledWidth,scaledWidth, scaledWidth )
+   --    end
+   -- end
+  
+   
+   --print(tickPerBar, canvasScale)
 
     
    tapedeckButtons()
@@ -680,6 +702,12 @@ function love.draw()
    if met.clicked then
       metronomeOn = not metronomeOn
       channel.main2audio:push ( {metronomeOn=metronomeOn} )
+
+   end
+   local met = imgbutton('preorll', ui.preroll, 850, 10, 24, 24, preroll and {1,0,0} or red)
+   if met.clicked then
+      preroll = not preroll
+      channel.main2audio:push ( {preroll=preroll} )
 
    end
    
@@ -735,17 +763,6 @@ function love.draw()
    love.graphics.setColor(0,0,0)
    
 
-
-   if showSettingsForInstrumentIndex > 0 then
-      --local adsr = instruments[showSettingsForInstrumentIndex].sounds[1].adsr
-      --renderADSREnvelope(adsr, screenW - 250 - 20, screenH - (20 * 20), 250, 100)
-      
-   end
-   
-   
-   --draw_label_button(200,15, 'play')
-   
-   --renderBrowser(instrumentBrowser, 40, 200)
    
    if showSettingsForInstrumentIndex > 0 then
 

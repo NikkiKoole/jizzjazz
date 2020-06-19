@@ -15,7 +15,7 @@ return {
       vibratoStrength = 10,  
       transpose = 0,
       usePitchForADSR = false,
-      transpose = 0,
+      transpose = 12,
    }, 
    
    sounds = {
