@@ -24,7 +24,11 @@ local notesPerChannel = {{},{},{},{},{},{}}
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 local metronomeOn = false
 local preroll = false
+local isLooping = false
+local loopCounter = 1
 
+local drumChannelPlaySingleOrAll = 0
+-- -1 is uit, 0 is all, ander nummer is het drumkanaal dat je wil
 
 
 metronomeBeat:setVolume(0.5)
@@ -46,15 +50,11 @@ end
 
 function loadAndFillInstrument(instrument)
    return loadAndFillInstrumentRaw(instrument)
-   --love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
-   --love.thread.getChannel( 'audio2main' ):push({instrument=instrument})
 end
-
 
 function readAsInstrumentFile(path)
    contents, size = love.filesystem.read( 'assets/instruments/'..path )
    local instr = (loadstring(contents)())
-   --print(inspect(instr))
    instr.path = path
    return instr
 end
@@ -62,13 +62,25 @@ end
 
 
 local instruments = {}
-instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
-instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
-instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
-instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
-instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
 
---instruments[5] =  loadAndFillInstrument(getDefaultInstrument())
+--instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
+instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
+--instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
+--instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
+--instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
+instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-cr78.lua"))
+print('is drumkit: ', instruments[2].isDrumKit)
+for i =1 , #instruments[2].sounds do
+   local thing = instruments[2].sounds[i]
+   --print(thing.sample.path)
+   instruments[2+i] = createDrumInstrument(thing.sample.path)
+   instruments[2+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+   instruments[2+i].isDrumKitPart = true
+end
+
+print(inspect(instruments[2]))
+
+--instruments[7] =  loadAndFillInstrument(getDefaultInstrument())
 --instruments[6] =  loadAndFillInstrumentRaw(getDefaultInstrument())
 
 --love.thread.getChannel( 'audio2main' ):push({soundData=instrument.sounds[1].sample.soundData})
@@ -104,14 +116,46 @@ function getFirstInActiveSource(instrument)
 end
 
 
-function playNote(semitone, velocity, channelIndex, length )
+function playNote(semitone, velocity, channelIndex )
 
    local instrument = instruments[channelIndex]
-   print(instrument.path)
+   --print(instrument.isDrumKit, instrument.isDrumKitPart )
    local settings = instrument.settings
-   local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument) 
+   local sound = nil
+   
+   if instrument.isDrumKit then
+      local amt = #instrument.sounds
+      local index = (semitone % amt)+1
+      --print("yo!")
+      playNote(semitone, velocity, channelIndex+index)
+      return
+      --instrument = instruments[channelIndex+index]
+      --local settings = instrument.settings
+      --sound = instrument.sounds[1]
+      -- local amt = #instrument.sounds
+      -- if drumChannelPlaySingleOrAll == 0 then
+        
+      --    local index = (semitone % amt)+1    -- we prolly need this in a momebt
+      --    sound = instrument.sounds[index]
+        
+      -- elseif drumChannelPlaySingleOrAll > 0 and
+      -- drumChannelPlaySingleOrAll <= amt then
+      --    sound = instrument.sounds[drumChannelPlaySingleOrAll] 
+      -- else
+      --    sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
+      -- end
+
+   elseif instrument.isDrumKitPart then
+      sound = instrument.sounds[1]
+      --print('jolo@', inspect(instrument.sounds))
+   else
+      sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
+   end
+   
+   
    local transpose = instrument.settings.transpose
-   local adsr = sound.adsr
+--   print(inspect(sound))
+   local adsr = sound.adsr 
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
 
@@ -168,17 +212,17 @@ function playNote(semitone, velocity, channelIndex, length )
          s2 = sound.sample.sound:clone()
       end
       
-      local s = {sound=s2,
+      local s = {sound = s2,
                  instrument = instrument,
                  pickedInstrumentSound = sound,
-                 key=semitone,
-                 channelIndex=channelIndex,
-                 noteOnTime=now,
-                 noteOnVelocity=velocity,
-                 noteOffTime=-1 ,
-                 usingLoopPoints=usingLoopPoints,
+                 key = semitone,
+                 channelIndex = channelIndex,
+                 noteOnTime = now,
+                 noteOnVelocity = velocity,
+                 noteOffTime = -1 ,
+                 usingLoopPoints = usingLoopPoints,
                  loopParts = sound.sample.loopPointParts,
-                 fullSound=sound.sample.fullSoundData }
+                 fullSound = sound.sample.fullSoundData }
 
       if settings.useSustain == false then
          if settings.usePitchForADSR then
@@ -196,12 +240,12 @@ function playNote(semitone, velocity, channelIndex, length )
          end
       end
 
-      if length ~= nil then
+      --if length ~= nil then
          
-          local perS = ( (timeData.tempo / 60) * 96) -- what you would use in 1 second
-          s.noteOffTime = now  + (length / perS)
+      --    local perS = ( (timeData.tempo / 60) * 96) -- what you would use in 1 second
+      --    s.noteOffTime = now  + (length / perS)
       --    s.noteOffVolume = 0.5  -- todo!
-      end
+     -- end
       
       
       s.sound:setPitch(getPitch(s))
@@ -322,6 +366,11 @@ function recordStoppedNote(b)
                     velocity=me.velocity,
                     length=tick - me.tick,
                     startTick=me.tick }
+
+      if isLooping then
+         print('you might ', loopCounter, 'wanna have an arry of takes ' )
+      end
+      
       if current ~= nil then
          table.insert(notesPerChannel[activeChannelIndex][me.tick], node)
       else
@@ -408,6 +457,9 @@ function handleThreadInput()
        if v.preroll ~= nil then
          preroll = v.preroll
       end
+       if v.isLooping ~= nil then
+         isLooping = v.isLooping
+      end
       
       if v.isRecording ~= nil then
          isRecording = v.isRecording
@@ -415,6 +467,11 @@ function handleThreadInput()
       
       if v.isPlaying ~= nil then
          isPlaying = v.isPlaying
+         if isPlaying == false and isLooping == true and isRecording then
+            loopCounter = 1
+            print('maybe check notes we have recorded?')
+         end
+         
          now = love.timer.getTime()
       end
 
@@ -474,11 +531,13 @@ function handleThreadInput()
       end
       
       if v.adsr then
+         -- this cant be good
          instruments[activeChannelIndex].sounds[1].adsr = v.adsr
       end
 
       if v.instrumentStartEnd then
          local d = v.instrumentStartEnd
+         -- this cant be good
          local loopStart = d.sounds[1].sample.loopStart
          local loopEnd = d.sounds[1].sample.loopEnd 
 
@@ -730,14 +789,11 @@ while(run ) do
                table.remove(triggeredPlayNotes, t)
             end
          end
-            
          
-         --local ff = activeChannelIndex
-         for j=1, #instruments do
+         for j=1, #notesPerChannel   do
             if notesPerChannel[j][wholeTick] ~= nil then
                for i = 1, #notesPerChannel[j][wholeTick] do
                   local n = notesPerChannel[j][wholeTick][i]
-                  --print(inspect(n), j)
                   n.channelIndex = j
                   playNote(n.key, n.velocity, j)
                   table.insert(triggeredPlayNotes, n)
@@ -773,13 +829,16 @@ while(run ) do
       lastTick = tick
 
       -- doing the loop
-      if lastTick > loopWidth then
-         lastTick = 0
-         beatAndBar.beat = 1
-         beatAndBar.bar = 1
-         love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
+      if isLooping then
+         if lastTick > loopWidth then
+            loopCounter = loopCounter + 1
+            print('loop / take ', loopCounter)
+            lastTick = 0
+            beatAndBar.beat = 1
+            beatAndBar.bar = 1
+            love.thread.getChannel( 'audio2main' ):push({beatAndBar=beatAndBar})
+         end
       end
-      
       
    end
    

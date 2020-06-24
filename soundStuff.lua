@@ -2,6 +2,7 @@
 
 
 function getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
+   --print('getting the sound!', instrument.isDrumKit)
    if #instrument.sounds == 1 then
       return instrument.sounds[1]
    else
@@ -20,7 +21,7 @@ function getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
             bestScored = instrument.sounds[i]
          end
       end
-      print('picked', bestScored.sample.path)
+      --print('picked', bestScored.sample.path)
       return bestScored
    end
 end
@@ -126,6 +127,43 @@ local vanillaEq = {
    lowshelf = vanillaFilter(true),
    highshelf = vanillaFilter(true),
 }
+
+
+function createDrumInstrument(path)
+   local s = love.sound.newSoundData( path )
+   --instrument.sounds[i].sample.soundData =s
+   --      instrument.sounds[i].sample.sound = love.audio.newSource(s, 'static')
+ 
+   return {
+     
+      settings = {
+         useVanillaLooping = false,
+         glide = false,
+         glideDuration = .5,
+         monophonic = false,
+         useSustain = true,
+         vibrato = false,
+         vibratoSpeed = 96/16,
+         vibratoStrength = 10,  
+         transpose = 0,
+         usePitchForADSR = false,
+         transpose = 0,
+      }, 
+      sounds = {{
+         eq = vanillaEq,
+         adsr = vanillaAdsr,
+         sample = {
+            path=path,
+            root=60,
+            fullSoundData = s,
+            soundData =s,
+            sound = love.audio.newSource(s, 'static')
+            
+         }
+      }}
+   }
+end
+
 
 function loadAndFillInstrumentRaw(instrument)
 
