@@ -25,11 +25,7 @@ function love.keypressed(key)
       isPlaying = not isPlaying
       channel.main2audio:push ( {isPlaying=isPlaying} )
    end
-   if key == 'p' then
-      --pasteNoteNowUsingLastPressed()
-   end
-   
-   
+      
    if  lpUI.enabed and instrument then
       local down = love.keyboard.isDown( 'lshift' )
       local multiplier = 1
@@ -340,8 +336,8 @@ function love.load()
    canvasX = instrWidth + margin
    canvasY = topBarHeight + margin
    canvasWidth = 144 -- will be overrtiiten inloop
-   canvasHeight = 100
-   drumPartCanvasHeight = 40
+   canvasHeight = 80
+   drumPartCanvasHeight = 32
    lastTick = 0
    instruments = {}
 
@@ -501,7 +497,9 @@ function love.draw()
    love.graphics.setColor(0.2, 0.2, 0.2)
    love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
 
-
+   if activeSources then
+      love.graphics.print(#activeSources, 150, 12)
+   end
    --renderMusicBar(musicBar)
 
    if lastHitNote then
@@ -590,7 +588,7 @@ function love.draw()
             channel.main2audio:push ( {activeChannelIndex=i} )
          end
          
-         if activeChannelIndex == i then
+         if active then
             love.graphics.setColor(r,g,b)
             love.graphics.rectangle('fill',canvasX,   runningY, canvasWidth, myHeight)
          end
@@ -605,7 +603,9 @@ function love.draw()
                   local x = canvasX + (k*canvasScale)
                   
                   --local y = canvasY + amount*10   - (vv.key-startKey)*10
-                  local y = canvasY + (i-1)*myHeight + myHeight - vv.key
+                  local y = mapInto(vv.key, 0, 144, 0, myHeight) --runningY
+                  y = runningY + myHeight - y
+                     --canvasY + (i-1)*myHeight + myHeight - vv.key
                   local w = vv.length * canvasScale
                   local h = canvasScale * 8
                   love.graphics.rectangle("fill", x,y,w,h)
@@ -617,7 +617,14 @@ function love.draw()
          
          
          renderPlayHead(canvasX, runningY, canvasWidth, myHeight, lastTick or 0, canvasScale)
-
+         if activeChannelIndex == i then
+            local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,runningY, 42, 42)
+            if eraser.clicked then
+               notes[activeChannelIndex] ={}
+               channel.main2audio:push ( {notes=notes} )
+            end
+         end
+         
          
          
          love.graphics.setColor(r, g, b)
@@ -634,43 +641,40 @@ function love.draw()
          local nameWidth = getStringWidth(name)
          renderLabel(name, margin + instrWidth/2 - nameWidth/2, runningY + myHeight/2 - 10,
                      margin+ 10, active and 1.0 or 0.25)
-         local settings = imgbutton('settings'..i,
-                                    ui.settings, margin + instrWidth/4,
-                                    runningY + myHeight/3,
-                                    32, 32,active and {1,1,1,1} or {1,1,1,0.25})
-         if settings.clicked then
+         
+         if active then
+            local settings = imgbutton('settings'..i,
+                                       ui.settings, margin + instrWidth/4,
+                                       runningY + myHeight/3,
+                                       32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+            if settings.clicked then
 
-            if (showSettingsForInstrumentIndex == i) then
-               showSettingsForInstrumentIndex = 0
-            else
-               activeChannelIndex = i
-               channel.main2audio:push ( {activeChannelIndex=i} )
-               showSettingsForInstrumentIndex = i 
+               if (showSettingsForInstrumentIndex == i) then
+                  showSettingsForInstrumentIndex = 0
+               else
+                  activeChannelIndex = i
+                  channel.main2audio:push ( {activeChannelIndex=i} )
+                  showSettingsForInstrumentIndex = i 
+               end
+            end
+            
+            imgbutton('volume'..i,
+                      ui.volumeUp,margin + (instrWidth/4)*2.5 ,
+                      runningY + myHeight/3,
+                      42, 42,active and {1,1,1,1} or {1,1,1,0.25})
+
+            if instruments[i].isDrumKit then
+               local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
+               imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 42,42 )
             end
          end
-         
-         imgbutton('volume'..i,
-                   ui.volumeUp,margin + (instrWidth/4)*2.5 ,
-                   runningY + myHeight/3,
-                   42, 42,active and {1,1,1,1} or {1,1,1,0.25})
-
-         if instruments[i].isDrumKit then
-            local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
-            imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 42,42 )
-         end
-
 
          runningY = runningY + myHeight
       end
 
 
 
-      local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,(activeChannelIndex)*myHeight
-                               , 42, 42)
-      if eraser.clicked then
-         notes[activeChannelIndex] ={}
-         channel.main2audio:push ( {notes=notes} )
-      end
+     
    end
 
    renderInstruments()

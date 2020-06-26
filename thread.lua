@@ -20,7 +20,7 @@ local timeSinceStartPlay = 0
 local activeChannelIndex = 1
 local recordingNotes = {}
 local triggeredPlayNotes = {}
-local notesPerChannel = {{},{},{},{},{},{}}
+
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 local metronomeOn = false
 local preroll = false
@@ -65,20 +65,29 @@ local instruments = {}
 
 --instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
 instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
---instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
---instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
---instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
-instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-cr78.lua"))
-print('is drumkit: ', instruments[2].isDrumKit)
-for i =1 , #instruments[2].sounds do
-   local thing = instruments[2].sounds[i]
+
+instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
+instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
+instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
+
+
+instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-cr78.lua"))
+print('is drumkit: ', instruments[5].isDrumKit)
+for i =1 , #instruments[5].sounds do
+   local thing = instruments[5].sounds[i]
    --print(thing.sample.path)
-   instruments[2+i] = createDrumInstrument(thing.sample.path)
-   instruments[2+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
-   instruments[2+i].isDrumKitPart = true
+   instruments[5+i] = createDrumInstrument(thing.sample.path)
+   instruments[5+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+   instruments[5+i].isDrumKitPart = true
 end
 
-print(inspect(instruments[2]))
+
+local notesPerChannel = {}
+for i=1, #instruments do
+   notesPerChannel[i] = {}
+end
+
+--print(inspect(instruments[2]))
 
 --instruments[7] =  loadAndFillInstrument(getDefaultInstrument())
 --instruments[6] =  loadAndFillInstrumentRaw(getDefaultInstrument())
@@ -119,42 +128,10 @@ end
 function playNote(semitone, velocity, channelIndex )
 
    local instrument = instruments[channelIndex]
-   --print(instrument.isDrumKit, instrument.isDrumKitPart )
    local settings = instrument.settings
-   local sound = nil
-   
-   if instrument.isDrumKit then
-      local amt = #instrument.sounds
-      local index = (semitone % amt)+1
-      --print("yo!")
-      playNote(semitone, velocity, channelIndex+index)
-      return
-      --instrument = instruments[channelIndex+index]
-      --local settings = instrument.settings
-      --sound = instrument.sounds[1]
-      -- local amt = #instrument.sounds
-      -- if drumChannelPlaySingleOrAll == 0 then
-        
-      --    local index = (semitone % amt)+1    -- we prolly need this in a momebt
-      --    sound = instrument.sounds[index]
-        
-      -- elseif drumChannelPlaySingleOrAll > 0 and
-      -- drumChannelPlaySingleOrAll <= amt then
-      --    sound = instrument.sounds[drumChannelPlaySingleOrAll] 
-      -- else
-      --    sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
-      -- end
-
-   elseif instrument.isDrumKitPart then
-      sound = instrument.sounds[1]
-      --print('jolo@', inspect(instrument.sounds))
-   else
-      sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
-   end
-   
+   local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
    
    local transpose = instrument.settings.transpose
---   print(inspect(sound))
    local adsr = sound.adsr 
    
    love.thread.getChannel( 'audio2main' ):push({playSemitone=semitone+transpose})
@@ -353,14 +330,16 @@ function recordPlayedNote(b, c)
                         tick=math.ceil(lastTick)}
 end
 
-function recordStoppedNote(b)
+function recordStoppedNote(b, channel)
    local me = recordingNotes[b]
 
    
    if me then
       local tick =  math.ceil(lastTick)
 
-      local current = notesPerChannel[activeChannelIndex][me.tick]
+      --print(channel, me.tick)
+      --print(inspect(notesPerChannel))
+      local current = notesPerChannel[channel][me.tick]
 
       local node = {key=me.semitone,
                     velocity=me.velocity,
@@ -372,10 +351,10 @@ function recordStoppedNote(b)
       end
       
       if current ~= nil then
-         table.insert(notesPerChannel[activeChannelIndex][me.tick], node)
+         table.insert(notesPerChannel[channel][me.tick], node)
       else
          current = {node}
-         notesPerChannel[activeChannelIndex][me.tick] = current
+         notesPerChannel[channel][me.tick] = current
       end
       
       recordingNotes[b] = nil
@@ -386,43 +365,63 @@ end
 
 function handleMIDIInput()
    if luamidi and luamidi.getinportcount() > 0 then
-      local a, b, c, d = nil
-      a,b,c,d = luamidi.getMessage(0)
+      local msg, semitone, velocity, d = nil
+      msg,semitone,velocity,d = luamidi.getMessage(0)
       --https://en.wikipedia.org/wiki/List_of_chords
       --local integers = {0, 4,7,11}
       local integers = {0}
 
       --local integers = {0, 4, 7, 11}
       --local integers = {0, 3, 7, 9}
-      if a ~= nil then
+      if msg ~= nil then
          -- look for an NoteON command
 
-         if a == 144 then
-            playNote(b, c, activeChannelIndex)
-            if isPlaying and isRecording then
-               recordPlayedNote(b, c)
+         if msg == 144 then
+            --local semitone = b
+            local channel = activeChannelIndex
+            local instrument = instruments[activeChannelIndex]
+            if (instrument.isDrumKit) then
+                local amt = #instrument.sounds
+                local index = (semitone % amt)+1
+                channel = activeChannelIndex + index
+                semitone = 60
             end
-            lastHitMIDISemitone = b
-         elseif a == 128 then
-            stopNote(b, activeChannelIndex)
+            playNote(semitone, velocity, channel)
+           
+            
             if isPlaying and isRecording then
-               recordStoppedNote(b)
+               recordPlayedNote(semitone, velocity)
+            end
+            lastHitMIDISemitone = semitone
+         elseif msg == 128 then
+            --local semitone = b
+            local channel = activeChannelIndex
+            local instrument = instruments[activeChannelIndex]
+            if (instrument.isDrumKit) then
+                local amt = #instrument.sounds
+                local index = (semitone % amt)+1
+                channel = activeChannelIndex + index
+                semitone = 60
+            end
+            stopNote(semitone, channel)
+            if isPlaying and isRecording then
+               recordStoppedNote(semitone, channel)
                
             end
-         elseif a == 176 then
-            if b == 2 then
+         elseif msg == 176 then
+            if semitone == 2 then
                --instruments[1].settings.vibratoSpeed = 96/ math.max(c,1)
-            elseif b == 3 then
+            elseif semitone == 3 then
                --instruments[1].settings.vibratoStrength = math.max(c,1)
 
             else
-               print('knob', b,c)
+               print('knob', semitone,velocity)
             end
 
-         elseif a == 224 then
-            pitchNote(c)
+         elseif msg == 224 then
+            pitchNote(velocity)
          else
-            print("unknown midi message: ", a, b,c,d)
+            print("unknown midi message: ", msg, semitone,velocity,d)
          end
       end
    end
@@ -687,7 +686,7 @@ while(run ) do
                               settings.usePitchForADSR and  pitch or 1)
       local vel = (activeSources[i].noteOnVelocity/127)
       activeSources[i].sound:setVolume(v * vel)
-
+      --print(i, v * vel)
       -- glide / portamento
       local newPitch = pitch
 
