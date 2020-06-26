@@ -72,12 +72,11 @@ instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
 
 
 instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-cr78.lua"))
-print('is drumkit: ', instruments[5].isDrumKit)
 for i =1 , #instruments[5].sounds do
    local thing = instruments[5].sounds[i]
-   --print(thing.sample.path)
    instruments[5+i] = createDrumInstrument(thing.sample.path)
    instruments[5+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+   instruments[5+1].sounds[1].adsr.attack = 0.00001
    instruments[5+i].isDrumKitPart = true
 end
 
@@ -187,6 +186,7 @@ function playNote(semitone, velocity, channelIndex )
          s2:queue(sound.sample.loopPointParts.begin)
       else
          s2 = sound.sample.sound:clone()
+         --s2:seek(0)
       end
       
       local s = {sound = s2,
@@ -200,7 +200,7 @@ function playNote(semitone, velocity, channelIndex )
                  usingLoopPoints = usingLoopPoints,
                  loopParts = sound.sample.loopPointParts,
                  fullSound = sound.sample.fullSoundData }
-
+      
       if settings.useSustain == false then
          if settings.usePitchForADSR then
             s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)/getPitch(s)
@@ -208,6 +208,12 @@ function playNote(semitone, velocity, channelIndex )
             s.noteOffTime = now  + (adsr.attack + adsr.decay + adsr.release)
          end
          
+         s.noteOffVolume = adsr.sustain
+      end
+
+      if instrument.isDrumKitPart then
+         s.noteOnTime = now - 0.01
+         s.noteOffTime = now + s.fullSound:getDuration()
          s.noteOffVolume = adsr.sustain
       end
 
@@ -224,9 +230,10 @@ function playNote(semitone, velocity, channelIndex )
       --    s.noteOffVolume = 0.5  -- todo!
      -- end
       
-      
+      --print(s.noteOffTime - s.noteOnTime, s.noteOffVolume)
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
+      --print('in playnote', semitone, velocity, channel)
       s.sound:play()
       love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s})
       love.thread.getChannel( 'audio2main' ):push({soundData=s.fullSound})
@@ -241,16 +248,16 @@ end
 
 function stopNote(semitone, channelIndex)
    
-   -- todo lets just send the appropriate channel indexes from somewhere
+   -- -- todo lets just send the appropriate channel indexes from somewhere
    for i=1, #activeSources do
-     
-      if semitone == activeSources[i].key and (channelIndex == activeSources[i].channelIndex) then
+
+      --print(activeSources[i].released)
+      if  not activeSources[i].released and semitone == activeSources[i].key and (channelIndex == activeSources[i].channelIndex) then
          
          if activeSources[i].instrument.settings.useSustain == true then
             activeSources[i].noteOffTime = now
             activeSources[i].noteOffVolume = activeSources[i].sound:getVolume()
          end
-
          activeSources[i].released = true
          --print('did stop ', semitone)
 
@@ -297,7 +304,7 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
          --print('before phase', volume§)
       elseif attackTime >=0 and attackTime <= attack then
          volume = mapInto(attackTime, 0, attack, 0, adsr.max)
-         --print('attack phase', volume)
+         print('attack phase', volume, attackTime , attack)
       elseif attackTime <= attack + decay then
          volume = mapInto(attackTime - attack, 0, adsr.decay, adsr.max, adsr.sustain)
          --print('decay phase', volume)
@@ -312,14 +319,14 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
       if adsr.release == 0 then
          volume = 0
       end
-      --print('release phase', volume, noteOffVolume)
-
    end
    if attackTime < 0 then
       volume = 0
    end
    
-   if volume < 0 then volume = 0 end
+   if volume < 0 then
+      volume = 0
+   end
 
    return volume
 end
@@ -386,6 +393,7 @@ function handleMIDIInput()
                 channel = activeChannelIndex + index
                 semitone = 60
             end
+           -- print('playNote: ',semitone, velocity, channel )
             playNote(semitone, velocity, channel)
            
             
@@ -686,6 +694,7 @@ while(run ) do
                               settings.usePitchForADSR and  pitch or 1)
       local vel = (activeSources[i].noteOnVelocity/127)
       activeSources[i].sound:setVolume(v * vel)
+      --activeSources[i].sound:setVolume(0.5)
       --print(i, v * vel)
       -- glide / portamento
       local newPitch = pitch

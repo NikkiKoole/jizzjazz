@@ -608,7 +608,11 @@ function love.draw()
                      --canvasY + (i-1)*myHeight + myHeight - vv.key
                   local w = vv.length * canvasScale
                   local h = canvasScale * 8
+                  love.graphics.setColor(0,0,0)
                   love.graphics.rectangle("fill", x,y,w,h)
+                  love.graphics.setColor(1,1,1)
+                  love.graphics.print(vv.velocity, x,y )
+                  
                   --end
                end
             end

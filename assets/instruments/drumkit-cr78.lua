@@ -9,7 +9,7 @@ return {
       glide = false,        -- glide is always monophonic
       glideDuration = .15,
       monophonic = false,
-      useSustain = true,
+      useSustain = false,
       vibrato = false,
       vibratoSpeed = 96/16,
       vibratoStrength = 10,  -- this should be in semitones
