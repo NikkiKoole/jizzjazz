@@ -158,7 +158,6 @@ function createDrumInstrument(path)
             fullSoundData = s,
             soundData =s,
             sound = love.audio.newSource(s, 'static')
-            
          }
       }}
    }
@@ -181,6 +180,9 @@ function loadAndFillInstrumentRaw(instrument)
          instrument.sounds[i].eq = vanillaEq
       end
       
+     -- if instrument.sounds[i].kind ~= "" then
+         --print(instrument.sounds[i].sample.kind)
+      --end
       
       local loopStart = instrument.sounds[i].sample.loopStart
       local loopEnd = instrument.sounds[i].sample.loopEnd 

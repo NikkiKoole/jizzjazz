@@ -641,12 +641,16 @@ function love.draw()
             if instruments[i].isDrumKitPart then
                --index = drumParent(i) % 12 + 1
                hue = hues[drumParent(i) % 12 + 1]
-               r,g,b =  HSL(hue, 100, 150, 1)
+               r,g,b =  HSL(hue, 50, 75, 1)
+               local active = activeChannelIndex == i
+               if active then
+                  r,g,b =  HSL(hue, 100, 150, 1)
+               end
 
                local triggered = isTriggeredDrumPart(i)
                if triggered then
                   --print('make another color?')
-                  r,g,b =  HSL(360-hue, 200*(triggered), 150)
+                  r,g,b =  HSL(hue, 200*(triggered), 150)
                end
                
 
@@ -656,7 +660,17 @@ function love.draw()
             
             local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
             if label.clicked then
+               --if activeChannelIndex == i then
+               --showSettingsForInstrumentIndex = i
+               --else
+               if showSettingsForInstrumentIndex > 0 then
+                  showSettingsForInstrumentIndex = i
+               end
+               
                activeChannelIndex = i
+               --end
+               
+               
                channel.main2audio:push ( {activeChannelIndex=i} )
             end
             
@@ -715,17 +729,22 @@ function love.draw()
             --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
             local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
            
-
+            if instruments[i].isDrumKitPart and instruments[i].kind ~= "" then
+               -- print('yo', i, instruments[i].path, inspect(instruments[i].sounds[1]))
+               --print( instruments[i].kind)
+               name = instruments[i].kind
+            end
+            
            
             local nameWidth = getStringWidth(name)
-            renderLabel(name, margin + instrWidth/2 - nameWidth/2, runningY + myHeight/2 - 10,
+            renderLabel(name, margin + (instrWidth-48)/2 - nameWidth/2, runningY + myHeight/2 - 10,
                         margin+ 10, active and 1.0 or 0.25)
             
             if active then
                local settings = imgbutton('settings'..i,
-                                          ui.settings, margin + instrWidth/4,
+                                          ui.settings, margin + instrWidth - 48 - 8,
                                           runningY + myHeight/3,
-                                          32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+                                          24, 24,active and {1,1,1,1} or {1,1,1,0.25})
                if settings.clicked then
 
                   if (showSettingsForInstrumentIndex == i) then
@@ -737,18 +756,39 @@ function love.draw()
                   end
                end
                
-               imgbutton('volume'..i,
-                         ui.volumeUp,margin + (instrWidth/4)*2.5 ,
+               local volumetoggle = imgbutton('volume'..i,
+                         ui.volumeUp,margin + (instrWidth) - 24 - 4 ,
                          runningY + myHeight/3,
-                         42, 42,active and {1,1,1,1} or {1,1,1,0.25})
-
+                         24, 24, active and {1,1,1,1} or {1,1,1,0.25})
+               if volumetoggle.clicked then
+                  instruments[i].uiVolumeOpened  = not instruments[i].uiVolumeOpened or false 
+                  print('now show or hide a slider ot volume this channel')
+               end
+               if instruments[i].uiVolumeOpened then
+                  local knob = h_slider('volumeForChannel'..i,
+                                  margin + (instrWidth),
+                                  runningY + myHeight/3,
+                                  200,
+                                  instruments[i].channelVolume or 1.0,
+                                  0, 2)
+                  if knob.value ~= nil then
+                     instruments[i].channelVolume = knob.value
+                     channel.main2audio:push ( {instrument=instruments[i]  });
+                     print('doing something')
+                  end
+                  
+                  
+               end
+               
+               
+               
                if instruments[i].isDrumKit then
                   local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
-                  imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 42,42 )
+                  imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 24,24 )
 
                   -- local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
                   local isOpen = instruments[i].uiDrumChildrenOpened or false
-                  local dropdownbutton = imgbutton("dropdown"..i, isOpen and ui.dropdownflipped or ui.dropdown , margin +instrWidth-42, drumbuttonY, 42,42 )
+                  local dropdownbutton = imgbutton("dropdown"..i, isOpen and ui.dropdownflipped or ui.dropdown , margin +instrWidth-32, drumbuttonY + canvasHeight-24, 24,24 )
                   
                   if dropdownbutton.clicked then
                      instruments[i].uiDrumChildrenOpened = not instruments[i].uiDrumChildrenOpened

@@ -73,6 +73,7 @@ for i =1 , #instruments[5].sounds do
    local thing = instruments[5].sounds[i]
    instruments[5+i] = createDrumInstrument(thing.sample.path)
    instruments[5+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+   instruments[5+i].kind = thing.sample.kind or "" 
    instruments[5+1].sounds[1].adsr.attack = 0.00001
    instruments[5+i].isDrumKitPart = true
 end
@@ -310,7 +311,7 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
          --print('before phase', volume§)
       elseif attackTime >=0 and attackTime <= attack then
          volume = mapInto(attackTime, 0, attack, 0, adsr.max)
-         print('attack phase', volume, attackTime , attack)
+--         print('attack phase', volume, attackTime , attack)
       elseif attackTime <= attack + decay then
          volume = mapInto(attackTime - attack, 0, adsr.decay, adsr.max, adsr.sustain)
          --print('decay phase', volume)
@@ -337,14 +338,19 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
      return volume
 end
 
-function recordPlayedNote(b, c)
-   recordingNotes[b] = {semitone=b,
-                        velocity=c,
+function recordPlayedNote(semitone, velocity, channel)
+   if recordingNotes[channel] == nil then
+      recordingNotes[channel] = {}
+   end
+   
+   recordingNotes[channel][semitone] = {semitone=semitone,
+                        velocity=velocity,
                         tick=math.ceil(lastTick)}
 end
 
 function recordStoppedNote(b, channel)
-   local me = recordingNotes[b]
+   local me = recordingNotes[channel][b]
+   print('stop ', b, channel)
 
    
    if me then
@@ -369,6 +375,7 @@ function recordStoppedNote(b, channel)
          current = {node}
          notesPerChannel[channel][me.tick] = current
       end
+      print(inspect(notesPerChannel))
       
       recordingNotes[b] = nil
       love.thread.getChannel( 'audio2main' ):push({notes=notesPerChannel})
@@ -393,11 +400,12 @@ function handleMIDIInput()
             --local semitone = b
             local channel = activeChannelIndex
             local instrument = instruments[activeChannelIndex]
+            
             if (instrument.isDrumKit) then
                 local amt = #instrument.sounds
                 local index = (semitone % amt)+1
                 channel = activeChannelIndex + index
-                semitone = 60
+                --semitone = 60
                 love.thread.getChannel( 'audio2main' ):push({triggeredDrumPart=channel})
             end
            -- print('playNote: ',semitone, velocity, channel )
@@ -405,7 +413,7 @@ function handleMIDIInput()
            
             
             if isPlaying and isRecording then
-               recordPlayedNote(semitone, velocity)
+               recordPlayedNote(semitone, velocity, channel)
             end
             
             lastHitMIDISemitone = semitone
@@ -417,7 +425,7 @@ function handleMIDIInput()
                 local amt = #instrument.sounds
                 local index = (semitone % amt)+1
                 channel = activeChannelIndex + index
-                semitone = 60
+               -- semitone = 60
             end
             stopNote(semitone, channel)
             if isPlaying and isRecording then
@@ -439,7 +447,7 @@ function handleMIDIInput()
                
                
                if isPlaying and isRecording then
-                  recordPlayedNote(semitone, velocity)
+                  recordPlayedNote(semitone, velocity, channel)
                end
                lastHitMIDISemitone = semitone
             end
@@ -732,9 +740,10 @@ while(run ) do
       local vel = (activeSources[i].noteOnVelocity/127.0)
       --print(v * vel, activeSources[i].noteOnTime, activeSources[i].noteOffTime)
 
-      activeSources[i].sound:setVolume(v * vel)
-      --activeSources[i].sound:setVolume(0.5)
-      --print(i, v * vel)
+      local channelVolumeMultiplier = activeSources[i].instrument.channelVolume or 1
+      activeSources[i].sound:setVolume(v * vel * channelVolumeMultiplier)
+      
+
       -- glide / portamento
       local newPitch = pitch
 
