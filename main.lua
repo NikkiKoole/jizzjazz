@@ -115,6 +115,22 @@ end
 
 
 function love.update(dt)
+
+   for i=1, #triggeredDrumParts do
+      triggeredDrumParts[i].sLeft = triggeredDrumParts[i].sLeft - dt
+     
+   end
+
+   for i=#triggeredDrumParts, 1, -1 do
+
+      if triggeredDrumParts[i].sLeft <= 0 then
+         table.remove(triggeredDrumParts, i)
+
+      end
+   end
+   --print(#triggeredDrumParts)
+   
+   
    local error = thread:getError()
    assert( not error, error )
 
@@ -127,6 +143,10 @@ function love.update(dt)
       if v.activeSources then
          activeSources = v.activeSources
       end
+      if v.triggeredDrumPart then
+         table.insert(triggeredDrumParts, {channel=v.triggeredDrumPart, sLeft=0.5})
+      end
+      
       if v.notes then
          notes = v.notes
       end
@@ -226,6 +246,15 @@ function love.mousemoved(x,y,dx,dy)
    --handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
 end
 
+function isTriggeredDrumPart(channel)
+   for i = 1, #triggeredDrumParts do
+      if triggeredDrumParts[i].channel == channel then
+         return triggeredDrumParts[i].sLeft
+      end
+   end
+  
+   return false
+end
 
 function love.load()
    
@@ -260,7 +289,9 @@ function love.load()
       eraser = love.graphics.newImage("resources/icons/eraser.png"),
       save = love.graphics.newImage("resources/icons/save.png"),
       preroll = love.graphics.newImage("resources/icons/preroll.png"),
-      grid = love.graphics.newImage("resources/icons/grid.png")
+      grid = love.graphics.newImage("resources/icons/grid.png"),
+      dropdown = love.graphics.newImage("resources/icons/dropdown.png"),
+      dropdownflipped = love.graphics.newImage("resources/icons/dropdownflipped.png")
     }
    
    --musicBar = createMusicBar()
@@ -343,7 +374,10 @@ function love.load()
 
    activeChannelIndex = 1
 
+   triggeredDrumParts = {}
    showSettingsForInstrumentIndex = 0
+
+   hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
 end
 
 
@@ -475,6 +509,23 @@ function love.filedropped(file)
    
 end
 
+function instrumentKind(instrument)
+   print(instrument.sounds[1].sample.kind)
+end
+
+
+function drumParent(childIndex)
+   assert(instruments[childIndex].isDrumKitPart)
+
+   for i=childIndex, 1, -1 do
+      if instruments[i].isDrumKit then
+         return i
+      end
+      
+   end
+   
+end
+
 
 function love.draw()
    love.graphics.setFont(font)
@@ -560,121 +611,156 @@ function love.draw()
 
    
    function renderInstruments()
-      local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
+      --local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
 
---      print(canvasHeight * #instruments, screenH - canvasY)
+      --      print(canvasHeight * #instruments, screenH - canvasY)
       local myHeight = canvasHeight
       
       local runningY =  canvasY
       
       for i = 1, #instruments do
+         
+         
          if instruments[i].isDrumKitPart then
             myHeight = drumPartCanvasHeight
          end
-         
-         
-         local index = i % 12 + 1 --math.floor(((lastTick/100) % #hues)+1)
-         local hue = hues[index]
-         local r,g,b =  HSL(hue, 25, 75, 1)
-         local active = activeChannelIndex == i
-         if active then
-            r,g,b =  HSL(hue, 100, 150, 1)
-         end
 
-         
-         local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
-         if label.clicked then
-            activeChannelIndex = i
-            channel.main2audio:push ( {activeChannelIndex=i} )
-         end
-         
-         if active then
-            love.graphics.setColor(r,g,b)
-            love.graphics.rectangle('fill',canvasX,   runningY, canvasWidth, myHeight)
-         end
-         
-         
-         renderMeasureBarsInSomeRect(canvasX, runningY, canvasWidth, myHeight, canvasScale)
-         --      print(inspect(notes[i]))
-         if notes[i] then
-            for k,v in pairs(notes[i]) do
-               for t,vv in pairs(v) do
-                  --if not vv.stop then
-                  local x = canvasX + (k*canvasScale)
-                  
-                  --local y = canvasY + amount*10   - (vv.key-startKey)*10
-                  local y = mapInto(vv.key, 0, 144, 0, myHeight) --runningY
-                  y = runningY + myHeight - y
-                     --canvasY + (i-1)*myHeight + myHeight - vv.key
-                  local w = vv.length * canvasScale
-                  local h = canvasScale * 8
-                  love.graphics.setColor(0,0,0)
-                  love.graphics.rectangle("fill", x,y,w,h)
-                  love.graphics.setColor(1,1,1)
-                  love.graphics.print(vv.velocity, x,y )
-                  
-                  --end
+         if not instruments[i].isDrumKitPart or
+         instruments[i].isDrumKitPart and instruments[drumParent(i)].uiDrumChildrenOpened then
+            
+            local index = i % 12 + 1 --math.floor(((lastTick/100) % #hues)+1)
+            local hue = hues[index]
+            local r,g,b =  HSL(hue, 25, 75, 1)
+            local active = activeChannelIndex == i
+            if active then
+               r,g,b =  HSL(hue, 100, 150, 1)
+            end
+
+
+            
+            if instruments[i].isDrumKitPart then
+               --index = drumParent(i) % 12 + 1
+               hue = hues[drumParent(i) % 12 + 1]
+               r,g,b =  HSL(hue, 100, 150, 1)
+
+               local triggered = isTriggeredDrumPart(i)
+               if triggered then
+                  --print('make another color?')
+                  r,g,b =  HSL(360-hue, 200*(triggered), 150)
                end
-            end
-         end
-         
-         
-         
-         renderPlayHead(canvasX, runningY, canvasWidth, myHeight, lastTick or 0, canvasScale)
-         if activeChannelIndex == i then
-            local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,runningY, 42, 42)
-            if eraser.clicked then
-               notes[activeChannelIndex] ={}
-               channel.main2audio:push ( {notes=notes} )
-            end
-         end
-         
-         
-         
-         love.graphics.setColor(r, g, b)
-         love.graphics.rectangle("fill", margin , runningY, instrWidth, myHeight)
-         
-         
-         love.graphics.setLineWidth(4)
-         love.graphics.setColor(0,0,0)
-         love.graphics.rectangle("line", margin , runningY, instrWidth, myHeight)
-         
-         
-         --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
-         local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
-         local nameWidth = getStringWidth(name)
-         renderLabel(name, margin + instrWidth/2 - nameWidth/2, runningY + myHeight/2 - 10,
-                     margin+ 10, active and 1.0 or 0.25)
-         
-         if active then
-            local settings = imgbutton('settings'..i,
-                                       ui.settings, margin + instrWidth/4,
-                                       runningY + myHeight/3,
-                                       32, 32,active and {1,1,1,1} or {1,1,1,0.25})
-            if settings.clicked then
+               
 
-               if (showSettingsForInstrumentIndex == i) then
-                  showSettingsForInstrumentIndex = 0
-               else
-                  activeChannelIndex = i
-                  channel.main2audio:push ( {activeChannelIndex=i} )
-                  showSettingsForInstrumentIndex = i 
+            end
+               
+          
+            
+            local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
+            if label.clicked then
+               activeChannelIndex = i
+               channel.main2audio:push ( {activeChannelIndex=i} )
+            end
+            
+            if active then
+               love.graphics.setColor(r,g,b)
+               love.graphics.rectangle('fill',canvasX,   runningY, canvasWidth, myHeight)
+            end
+            
+            
+            renderMeasureBarsInSomeRect(canvasX, runningY, canvasWidth, myHeight, canvasScale)
+            --      print(inspect(notes[i]))
+            if notes[i] then
+               for k,v in pairs(notes[i]) do
+                  for t,vv in pairs(v) do
+                     --if not vv.stop then
+                     local x = canvasX + (k*canvasScale)
+                     
+                     --local y = canvasY + amount*10   - (vv.key-startKey)*10
+                     local y = mapInto(vv.key, 0, 144, 0, myHeight) --runningY
+                     y = runningY + myHeight - y
+                     --canvasY + (i-1)*myHeight + myHeight - vv.key
+                     local w = vv.length * canvasScale
+                     local h = canvasScale * 8
+                     love.graphics.setColor(0,0,0)
+                     love.graphics.rectangle("fill", x,y,w,h)
+                     love.graphics.setColor(1,1,1)
+                     love.graphics.print(vv.velocity, x,y )
+                     
+                     --end
+                  end
                end
             end
             
-            imgbutton('volume'..i,
-                      ui.volumeUp,margin + (instrWidth/4)*2.5 ,
-                      runningY + myHeight/3,
-                      42, 42,active and {1,1,1,1} or {1,1,1,0.25})
-
-            if instruments[i].isDrumKit then
-               local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
-               imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 42,42 )
+            
+            
+            renderPlayHead(canvasX, runningY, canvasWidth, myHeight, lastTick or 0, canvasScale)
+            if activeChannelIndex == i then
+               local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,runningY, 42, 42)
+               if eraser.clicked then
+                  notes[activeChannelIndex] ={}
+                  channel.main2audio:push ( {notes=notes} )
+               end
             end
-         end
+            
+            
+            
+            love.graphics.setColor(r, g, b)
+            love.graphics.rectangle("fill", margin , runningY, instrWidth, myHeight)
+            
+            
+            love.graphics.setLineWidth(4)
+            love.graphics.setColor(0,0,0)
+            love.graphics.rectangle("line", margin , runningY, instrWidth, myHeight)
+            
+            
+            --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
+            local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
+           
 
-         runningY = runningY + myHeight
+           
+            local nameWidth = getStringWidth(name)
+            renderLabel(name, margin + instrWidth/2 - nameWidth/2, runningY + myHeight/2 - 10,
+                        margin+ 10, active and 1.0 or 0.25)
+            
+            if active then
+               local settings = imgbutton('settings'..i,
+                                          ui.settings, margin + instrWidth/4,
+                                          runningY + myHeight/3,
+                                          32, 32,active and {1,1,1,1} or {1,1,1,0.25})
+               if settings.clicked then
+
+                  if (showSettingsForInstrumentIndex == i) then
+                     showSettingsForInstrumentIndex = 0
+                  else
+                     activeChannelIndex = i
+                     channel.main2audio:push ( {activeChannelIndex=i} )
+                     showSettingsForInstrumentIndex = i 
+                  end
+               end
+               
+               imgbutton('volume'..i,
+                         ui.volumeUp,margin + (instrWidth/4)*2.5 ,
+                         runningY + myHeight/3,
+                         42, 42,active and {1,1,1,1} or {1,1,1,0.25})
+
+               if instruments[i].isDrumKit then
+                  local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
+                  imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 42,42 )
+
+                  -- local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
+                  local isOpen = instruments[i].uiDrumChildrenOpened or false
+                  local dropdownbutton = imgbutton("dropdown"..i, isOpen and ui.dropdownflipped or ui.dropdown , margin +instrWidth-42, drumbuttonY, 42,42 )
+                  
+                  if dropdownbutton.clicked then
+                     instruments[i].uiDrumChildrenOpened = not instruments[i].uiDrumChildrenOpened
+                  end
+                  
+               end
+            end
+
+            runningY = runningY + myHeight
+         end
       end
+      
 
 
 
@@ -881,7 +967,7 @@ function love.draw()
    if showSettingsForInstrumentIndex > 0 then
 
       local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
-      local r,g,b =  HSL(hues[1 + showSettingsForInstrumentIndex], 100, 150, 1)
+      local r,g,b =  HSL(hues[1 + (showSettingsForInstrumentIndex % #hues)], 100, 150, 1)
       love.graphics.setLineWidth(3)
       love.graphics.setColor(r,g,b)
 

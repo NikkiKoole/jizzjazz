@@ -27,9 +27,9 @@ local preroll = false
 local isLooping = false
 local loopCounter = 1
 
-local drumChannelPlaySingleOrAll = 0
--- -1 is uit, 0 is all, ander nummer is het drumkanaal dat je wil
-
+-- I WANT A LITTLE BIT OF THIS
+-- https://www.onemotion.com/chord-player/
+-- https://chordchord.com/
 
 metronomeBeat:setVolume(0.5)
 channel 	= {};
@@ -65,13 +65,10 @@ local instruments = {}
 
 --instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
 instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
-
 instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
 instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
 instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
-
-
-instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-cr78.lua"))
+instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-jazzfunk.lua"))
 for i =1 , #instruments[5].sounds do
    local thing = instruments[5].sounds[i]
    instruments[5+i] = createDrumInstrument(thing.sample.path)
@@ -211,8 +208,9 @@ function playNote(semitone, velocity, channelIndex )
          s.noteOffVolume = adsr.sustain
       end
 
+      -- this is trying to fix the issue but failing
       if instrument.isDrumKitPart then
-         s.noteOnTime = now - 0.01
+         s.noteOnTime = now - 0.0001
          s.noteOffTime = now + s.fullSound:getDuration()
          s.noteOffVolume = adsr.sustain
       end
@@ -221,7 +219,11 @@ function playNote(semitone, velocity, channelIndex )
          if not s.loopParts then
             s.sound:setLooping(true)
          end
+         print('looping = true')
+      else
+         print('looping = false')
       end
+      
 
       --if length ~= nil then
          
@@ -233,6 +235,10 @@ function playNote(semitone, velocity, channelIndex )
       --print(s.noteOffTime - s.noteOnTime, s.noteOffVolume)
       s.sound:setPitch(getPitch(s))
       s.sound:setVolume(0)
+      if instrument.isDrumKitPart then
+         s.sound:setVolume(adsr.sustain)
+      end
+       --s.sound:setVolume(adsr.sustain)
       --print('in playnote', semitone, velocity, channel)
       s.sound:play()
       love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s})
@@ -328,7 +334,7 @@ function getVolumeASDR(now, noteOnTime, noteOffTime, noteOffVolume,adsr, isEcho,
       volume = 0
    end
 
-   return volume
+     return volume
 end
 
 function recordPlayedNote(b, c)
@@ -392,6 +398,7 @@ function handleMIDIInput()
                 local index = (semitone % amt)+1
                 channel = activeChannelIndex + index
                 semitone = 60
+                love.thread.getChannel( 'audio2main' ):push({triggeredDrumPart=channel})
             end
            -- print('playNote: ',semitone, velocity, channel )
             playNote(semitone, velocity, channel)
@@ -400,6 +407,7 @@ function handleMIDIInput()
             if isPlaying and isRecording then
                recordPlayedNote(semitone, velocity)
             end
+            
             lastHitMIDISemitone = semitone
          elseif msg == 128 then
             --local semitone = b
@@ -416,6 +424,35 @@ function handleMIDIInput()
                recordStoppedNote(semitone, channel)
                
             end
+         elseif msg == 153 or msg == 137 then
+            local channel = activeChannelIndex
+            local instrument = instruments[activeChannelIndex]
+            if (instrument.isDrumKit) then
+               local amt = #instrument.sounds
+               local index = (semitone % amt)+1
+               channel = activeChannelIndex + index
+               semitone = 60
+            end
+            
+            if msg== 153 then 
+               playNote(semitone, velocity, channel)
+               
+               
+               if isPlaying and isRecording then
+                  recordPlayedNote(semitone, velocity)
+               end
+               lastHitMIDISemitone = semitone
+            end
+            if msg== 137 then 
+               
+               stopNote(semitone, channel)
+            if isPlaying and isRecording then
+               recordStoppedNote(semitone, channel)
+               
+            end
+            end
+            
+         
          elseif msg == 176 then
             if semitone == 2 then
                --instruments[1].settings.vibratoSpeed = 96/ math.max(c,1)
@@ -692,7 +729,9 @@ while(run ) do
                               activeSources[i].pickedInstrumentSound.adsr,
                               activeSources[i].isEcho,
                               settings.usePitchForADSR and  pitch or 1)
-      local vel = (activeSources[i].noteOnVelocity/127)
+      local vel = (activeSources[i].noteOnVelocity/127.0)
+      --print(v * vel, activeSources[i].noteOnTime, activeSources[i].noteOffTime)
+
       activeSources[i].sound:setVolume(v * vel)
       --activeSources[i].sound:setVolume(0.5)
       --print(i, v * vel)
@@ -731,6 +770,7 @@ while(run ) do
       
       
       if newPitch < 0.00001 then newPitch = 0.00001 end
+      
       activeSources[i].sound:setPitch(newPitch)
 
       
@@ -752,7 +792,7 @@ while(run ) do
    for i = #activeSources, 1, -1 do
       if activeSources[i].released == true then
          local remove = false
-         if activeSources[i].sound:getVolume() < 0.00001 and now > activeSources[i].noteOnTime then
+         if activeSources[i].sound:getVolume() < 0.00001 and now >= activeSources[i].noteOnTime then
             activeSources[i].sound:setVolume(0)
             activeSources[i].remove = true
          end
@@ -853,7 +893,7 @@ while(run ) do
    
 
    
-   love.timer.sleep(0.001)
+   --love.timer.sleep(0.001)
    
 end
 
