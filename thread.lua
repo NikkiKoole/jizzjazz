@@ -58,31 +58,58 @@ function readAsInstrumentFile(path)
    instr.path = path
    return instr
 end
-
-
+function readAsDrumKitFile(path)
+   contents, size = love.filesystem.read( 'assets/drumkits/'..path )
+   local instr = (loadstring(contents)())
+   instr.path = path
+   return instr
+end
 
 local instruments = {}
+local notesPerChannel = {}
+
+function buildInstrumentsForDrumKit(drumkitIndex)
+   for i =1 , #instruments[drumkitIndex].sounds do
+       local thing = instruments[drumkitIndex].sounds[i]
+       instruments[drumkitIndex+i] = createDrumInstrument(thing.sample.path)
+       instruments[drumkitIndex+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+       instruments[drumkitIndex+i].kind = thing.sample.kind or "" 
+       instruments[drumkitIndex+i].sounds[1].adsr.attack = 0.00001
+       instruments[drumkitIndex+i].isDrumKitPart = true
+   end
+   
+end
+
+function giveInstrumentsNotesIfNeeded()
+   for i=1, #instruments do
+      if not notesPerChannel[i] then
+         notesPerChannel[i] = {}
+      end
+   end
+end
+
 
 --instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
+
 instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
 instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
 instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
 instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
-instruments[5] =  loadAndFillInstrument(readAsInstrumentFile("drumkit-jazzfunk.lua"))
-for i =1 , #instruments[5].sounds do
-   local thing = instruments[5].sounds[i]
-   instruments[5+i] = createDrumInstrument(thing.sample.path)
-   instruments[5+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
-   instruments[5+i].kind = thing.sample.kind or "" 
-   instruments[5+1].sounds[1].adsr.attack = 0.00001
-   instruments[5+i].isDrumKitPart = true
-end
+instruments[5] =  loadAndFillInstrument(readAsDrumKitFile("drumkit-cr78.lua"))
+buildInstrumentsForDrumKit(5)
+
+giveInstrumentsNotesIfNeeded()
+-- for i =1 , #instruments[5].sounds do
+--    local thing = instruments[5].sounds[i]
+--    instruments[5+i] = createDrumInstrument(thing.sample.path)
+--    instruments[5+i].path = string.gsub(thing.sample.path, "assets/samples/", "")
+--    instruments[5+i].kind = thing.sample.kind or "" 
+--    instruments[5+1].sounds[1].adsr.attack = 0.00001
+--    instruments[5+i].isDrumKitPart = true
+-- end
 
 
-local notesPerChannel = {}
-for i=1, #instruments do
-   notesPerChannel[i] = {}
-end
+
 
 --print(inspect(instruments[2]))
 
@@ -123,7 +150,7 @@ end
 
 
 function playNote(semitone, velocity, channelIndex )
-
+   --print( 'playNote',semitone, velocity, channelIndex )
    local instrument = instruments[channelIndex]
    local settings = instrument.settings
    local sound = getSoundForSemitoneAndVelocity(semitone, velocity, instrument)
@@ -220,9 +247,9 @@ function playNote(semitone, velocity, channelIndex )
          if not s.loopParts then
             s.sound:setLooping(true)
          end
-         print('looping = true')
+--         print('looping = true')
       else
-         print('looping = false')
+--         print('looping = false')
       end
       
 
@@ -349,8 +376,13 @@ function recordPlayedNote(semitone, velocity, channel)
 end
 
 function recordStoppedNote(b, channel)
+   if recordingNotes[channel] == nil then
+      recordingNotes[channel] = {}
+      print('workaround this sound still nedds to be stopped')
+   end
+   
    local me = recordingNotes[channel][b]
-   print('stop ', b, channel)
+--   print('stop ', b, channel)
 
    
    if me then
@@ -358,8 +390,9 @@ function recordStoppedNote(b, channel)
 
       --print(channel, me.tick)
       --print(inspect(notesPerChannel))
-      local current = notesPerChannel[channel][me.tick]
-
+      
+     
+      
       local node = {key=me.semitone,
                     velocity=me.velocity,
                     length=tick - me.tick,
@@ -368,20 +401,31 @@ function recordStoppedNote(b, channel)
       if isLooping then
          print('you might ', loopCounter, 'wanna have an arry of takes ' )
       end
-      
+
+      assert(notesPerChannel[channel])
+      local current = notesPerChannel[channel][me.tick]
+
       if current ~= nil then
          table.insert(notesPerChannel[channel][me.tick], node)
       else
          current = {node}
          notesPerChannel[channel][me.tick] = current
       end
-      print(inspect(notesPerChannel))
+      --print(inspect(notesPerChannel))
       
-      recordingNotes[b] = nil
+      --recordingNotes[b] = nil
       love.thread.getChannel( 'audio2main' ):push({notes=notesPerChannel})
    end
 end
 
+function stopAllNotes()
+         for ti =#triggeredPlayNotes, 1 , -1 do
+            local p = triggeredPlayNotes[ti]
+            stopNote(p.key, p.channelIndex)
+            table.remove(triggeredPlayNotes, ti)
+         end
+         
+      end
 
 function handleMIDIInput()
    if luamidi and luamidi.getinportcount() > 0 then
@@ -506,7 +550,7 @@ function handleThreadInput()
       if v.metronomeOn ~= nil then
          metronomeOn = v.metronomeOn
       end
-       if v.preroll ~= nil then
+      if v.preroll ~= nil then
          preroll = v.preroll
       end
        if v.isLooping ~= nil then
@@ -516,7 +560,12 @@ function handleThreadInput()
       if v.isRecording ~= nil then
          isRecording = v.isRecording
       end
-      
+      if v.stopAllNotes then
+         stopAllNotes()
+         
+      end
+
+   
       if v.isPlaying ~= nil then
          isPlaying = v.isPlaying
          if isPlaying == false and isLooping == true and isRecording then
@@ -576,9 +625,25 @@ function handleThreadInput()
       end
       
       if v.loadInstrument then
+         print('load instrument', v.loadInstrument)
+         -- maybe clean out my old children if im drumkit
+         if instruments[activeChannelIndex].isDrumKit then
+            for i = 1, #instruments[activeChannelIndex].sounds do
+               instruments[activeChannelIndex+i] = nil
+            end
+         end
+         
 
+         
          instruments[activeChannelIndex] = loadAndFillInstrument(v.loadInstrument.instrument)
+         if instruments[activeChannelIndex].isDrumKit then
+            print("itsa drumkit")
+            buildInstrumentsForDrumKit(activeChannelIndex)
+
+         end
+         
          instruments[activeChannelIndex].path = v.loadInstrument.path
+         giveInstrumentsNotesIfNeeded()
          love.thread.getChannel( 'audio2main' ):push({instruments=instruments})
       end
       
@@ -831,6 +896,8 @@ while(run ) do
 
 
       
+      
+      
       if math.floor(tick) - math.floor(lastTick) > 1 then
          print('thread: missed ticks:', math.floor(tick), math.floor(lastTick))
       end
@@ -850,10 +917,15 @@ while(run ) do
          for j=1, #notesPerChannel   do
             if notesPerChannel[j][wholeTick] ~= nil then
                for i = 1, #notesPerChannel[j][wholeTick] do
-                  local n = notesPerChannel[j][wholeTick][i]
-                  n.channelIndex = j
-                  playNote(n.key, n.velocity, j)
-                  table.insert(triggeredPlayNotes, n)
+                  if instruments[j] then
+                     local n = notesPerChannel[j][wholeTick][i]
+                     n.channelIndex = j
+                     playNote(n.key, n.velocity, j)
+                     table.insert(triggeredPlayNotes, n)
+                  else
+                     print('skipped a play on a no longer existing channel', j)
+                  end
+                  
                end
             end
          end

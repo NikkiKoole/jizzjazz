@@ -1,6 +1,6 @@
 
 function dir(p)
-   return "assets/samples/acoustic guitars/70s chorus/"..p
+   return "assets/samples/guitars/70s chorus/"..p
 end
 
 return {

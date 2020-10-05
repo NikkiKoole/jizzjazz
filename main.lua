@@ -5,6 +5,7 @@ require 'musicBar'
 require 'instrument'
 require 'fileBrowser'
 local thread -- Our thread object.
+log = require "log"
 
 function findLast(haystack, needle)
    local i=haystack:match(".*"..needle.."()")
@@ -115,7 +116,8 @@ end
 
 
 function love.update(dt)
-
+   -- http://127.0.0.1:8000
+   require("lovebird").update()
    for i=1, #triggeredDrumParts do
       triggeredDrumParts[i].sLeft = triggeredDrumParts[i].sLeft - dt
      
@@ -257,9 +259,7 @@ function isTriggeredDrumPart(channel)
 end
 
 function love.load()
-   
-   
-   
+   log.trace('hi hello!')
    --love.window.setMode(1024, 768)
    cursors = {hand=love.mouse.getSystemCursor("hand"),
               arrow=love.mouse.getSystemCursor("arrow"),
@@ -291,7 +291,9 @@ function love.load()
       preroll = love.graphics.newImage("resources/icons/preroll.png"),
       grid = love.graphics.newImage("resources/icons/grid.png"),
       dropdown = love.graphics.newImage("resources/icons/dropdown.png"),
-      dropdownflipped = love.graphics.newImage("resources/icons/dropdownflipped.png")
+      dropdownflipped = love.graphics.newImage("resources/icons/dropdownflipped.png"),
+      add = love.graphics.newImage("resources/icons/add.png"),
+      trash = love.graphics.newImage("resources/icons/trash.png")
     }
    
    --musicBar = createMusicBar()
@@ -615,7 +617,6 @@ function love.draw()
 
       --      print(canvasHeight * #instruments, screenH - canvasY)
       local myHeight = canvasHeight
-      
       local runningY =  canvasY
       
       for i = 1, #instruments do
@@ -660,17 +661,11 @@ function love.draw()
             
             local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
             if label.clicked then
-               --if activeChannelIndex == i then
-               --showSettingsForInstrumentIndex = i
-               --else
                if showSettingsForInstrumentIndex > 0 then
                   showSettingsForInstrumentIndex = i
                end
                
                activeChannelIndex = i
-               --end
-               
-               
                channel.main2audio:push ( {activeChannelIndex=i} )
             end
             
@@ -774,13 +769,8 @@ function love.draw()
                   if knob.value ~= nil then
                      instruments[i].channelVolume = knob.value
                      channel.main2audio:push ( {instrument=instruments[i]  });
-                     print('doing something')
                   end
-                  
-                  
                end
-               
-               
                
                if instruments[i].isDrumKit then
                   local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
@@ -800,7 +790,9 @@ function love.draw()
             runningY = runningY + myHeight
          end
       end
-      
+
+      --imgbutton("add-instrument", ui.add, margin-2, runningY+2, 40, 40)
+      --print(runningY)
 
 
 

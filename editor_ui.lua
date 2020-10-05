@@ -22,6 +22,11 @@ function tapedeckButtons()
    if play.clicked then
       isPlaying = not isPlaying
       channel.main2audio:push ( {isPlaying=isPlaying} )
+      if not isPlaying then
+         channel.main2audio:push ( {stopAllNotes=true} )
+         print("stop all sounds!")
+      end
+      
    end
 
    local rec = imgbutton('record', ui.record, 200+108, 10, 48, 48, isRecording and {1,0,0} or red)
