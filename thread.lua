@@ -20,7 +20,8 @@ local timeSinceStartPlay = 0
 local activeChannelIndex = 1
 local recordingNotes = {}
 local triggeredPlayNotes = {}
-
+local triggeredPianoRollPlayNotes = {} -- they come from clicking
+-- the note in the piano roll
 local metronomeBeat = love.audio.newSource("assets/samples/cr78/Rim Shot.wav", 'static')
 local metronomeOn = false
 local preroll = false
@@ -200,7 +201,12 @@ function playNote(semitone, velocity, channelIndex )
             love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=activeSources[index]})
          end
       end
-      
+
+      -- if length then
+      --    print('hi yes?')
+      --     activeSources[alreadyInUseIndex].noteOffTime = now +length
+      --  end
+       
 
    else
       local s2
@@ -272,8 +278,16 @@ function playNote(semitone, velocity, channelIndex )
       love.thread.getChannel( 'audio2main' ):push({soundStartPlaying=s})
       love.thread.getChannel( 'audio2main' ):push({soundData=s.fullSound})
       table.insert(activeSources, s)
+
+      -- if length then
+      --    print('hi yes 2?')
+      --     s.noteOffTime = now +length
+      --  end
+       
    end
-   
+
+
+  
    love.thread.getChannel( 'audio2main' ):push({activeSources=activeSources})
 
 end
@@ -546,6 +560,19 @@ function handleThreadInput()
          
          activeChannelIndex = v.activeChannelIndex
       end
+      if v.playNotePianoRoll ~= nil then
+         local thing = v.playNotePianoRoll
+         --playNote(thing.key, thing.velocity, activeChannelIndex, thing.length)
+
+         thing.channelIndex = activeChannelIndex
+         thing.startTick = now
+         --print(inspect(thing))
+         playNote(thing.key, thing.velocity, thing.channelIndex)
+         table.insert(triggeredPianoRollPlayNotes, thing)
+          
+         --print('yeeah and now?', inspect(thing))
+         
+      end
       
       if v.metronomeOn ~= nil then
          metronomeOn = v.metronomeOn
@@ -623,6 +650,27 @@ function handleThreadInput()
       if v.instrument then
          instruments[activeChannelIndex] = v.instrument
       end
+
+      if v.loadInstrumentsForFile then
+         local tab = v.loadInstrumentsForFile
+         --print(#tab)
+         print('should do a whole lotta loading')
+         for i=1, #tab do
+            if ends_with(tab[i].path, '.lua') then
+               print(i, tab[i].path)
+               if i < 5 then
+                  local instrument = loadAndFillInstrument(readAsInstrumentFile(tab[i].path))
+                  instruments[i] = instrument
+                  instruments[i].path = tab[i].path
+               end
+               --print(instrument.isDrumKit)
+            end
+            
+            --print(tab[i].path)
+         end
+         love.thread.getChannel( 'audio2main' ):push({instruments=instruments})
+      end
+      
       
       if v.loadInstrument then
          print('load instrument', v.loadInstrument)
@@ -634,7 +682,7 @@ function handleThreadInput()
          end
          
 
-         
+         print(v.loadInstrument.instrument)
          instruments[activeChannelIndex] = loadAndFillInstrument(v.loadInstrument.instrument)
          if instruments[activeChannelIndex].isDrumKit then
             print("itsa drumkit")
@@ -886,6 +934,22 @@ while(run ) do
    local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
    local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
    local loopWidth = 4 * tickPerBar
+
+   for pp = #triggeredPianoRollPlayNotes, 1,-1 do
+      local tickdelta = (delta * (timeData.tempo / 60) * 96)
+      local tick = lastTick + tickdelta
+      local thing = triggeredPianoRollPlayNotes[pp]
+      if now > thing.startTick + thing.length/((timeData.tempo / 60) * 96) then
+         stopNote(thing.key, thing.channelIndex)
+         table.remove(triggeredPianoRollPlayNotes, pp)
+      end
+      --lastTick
+      
+      --if math.floor(tick) ~= math.floor(lastTick) then
+      --   print(inspect(thing), tick)
+      --end
+   end
+   
    if isPlaying==true then
 
       timeSinceStartPlay = timeSinceStartPlay + delta
@@ -902,12 +966,17 @@ while(run ) do
          print('thread: missed ticks:', math.floor(tick), math.floor(lastTick))
       end
 
+     
+      
       if math.floor(tick) ~= math.floor(lastTick) then
          
          local wholeTick = math.ceil(tick)
-
+         
+         
+         
          for t = #triggeredPlayNotes, 1, -1 do
             local p = triggeredPlayNotes[t]
+            --print((p.startTick + p.length) == wholeTick, p.startTick, p.length, wholeTick)
             if ((p.startTick + p.length) == wholeTick) then
                stopNote(p.key, p.channelIndex)
                table.remove(triggeredPlayNotes, t)

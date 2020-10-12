@@ -103,7 +103,7 @@ function renderMeasureBarsInSomeRect(x,y,w,h, scale)
       love.graphics.rectangle('fill', x+i*beatStep*scale,y, beatStep*scale,h)
    end
    
-   love.graphics.setColor(0,0,0)
+   love.graphics.setColor(0,0,0,0.1)
    
    for i=0, w/scale, beatStep  do
       love.graphics.line(x+(i*scale), y, x+(i*scale), y+10)

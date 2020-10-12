@@ -4,6 +4,7 @@ require 'editor_ui'
 require 'musicBar'
 require 'instrument'
 require 'fileBrowser'
+require 'soundStuff'
 local thread -- Our thread object.
 log = require "log"
 
@@ -11,12 +12,12 @@ function findLast(haystack, needle)
    local i=haystack:match(".*"..needle.."()")
    if i==nil then return nil else return i-1 end
 end
- function isInTable(value, tab)
-      for i,v in pairs(tab) do
-         if value == v then return true end
-      end
-      return false
+function isInTable(value, tab)
+   for i,v in pairs(tab) do
+      if value == v then return true end
    end
+   return false
+end
 
 function love.keypressed(key)
    if key == 'escape' then
@@ -26,7 +27,7 @@ function love.keypressed(key)
       isPlaying = not isPlaying
       channel.main2audio:push ( {isPlaying=isPlaying} )
    end
-      
+   
    if  lpUI.enabed and instrument then
       local down = love.keyboard.isDown( 'lshift' )
       local multiplier = 1
@@ -93,14 +94,16 @@ function mysplit (inputstr, sep)
 end
 
 function love.wheelmoved(a,b)
-   --handleMusicBarWheelMoved(musicBar, a,b)
+   handleMusicBarWheelMoved(musicBar, a,b)
    handleFileBrowserWheelMoved(browser, a,b)
    handleWavLoopZoom(a,b, instruments[1].sounds[1].sample)
 
 
    local mx, my = love.mouse:getPosition()
+   print(canvasHeight, canvasWidth)
    if mx > canvasX and mx < canvasX+canvasWidth then
       if my > canvasY and my < canvasY+canvasHeight then
+         print('canvasScale', canvasScale)
          if b > 0 then
             canvasScale = canvasScale * 2.0
          else
@@ -120,7 +123,7 @@ function love.update(dt)
    require("lovebird").update()
    for i=1, #triggeredDrumParts do
       triggeredDrumParts[i].sLeft = triggeredDrumParts[i].sLeft - dt
-     
+      
    end
 
    for i=#triggeredDrumParts, 1, -1 do
@@ -201,7 +204,7 @@ end
 
 
 function love.mousepressed(x,y)
-   --handleMusicBarClicked(musicBar,x,y)
+   handleMusicBarClicked(musicBar,x,y)
 end
 
 function stringEndsWith(str, ending)
@@ -217,7 +220,7 @@ function round(num, numDecimalPlaces)
 end
 
 function love.mousereleased(x,y)
-   --handleMusicBarMouseReleased(musicBar,x,y)
+   handleMusicBarMouseReleased(musicBar,x,y)
    
    dragging = false
    love.mouse.setCursor(cursors.arrow)
@@ -244,8 +247,8 @@ end
 
 
 function love.mousemoved(x,y,dx,dy)
-  
-   --handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
+   
+   handleMusicBarMouseMoved(musicBar, x,y,dx,dy)
 end
 
 function isTriggeredDrumPart(channel)
@@ -254,7 +257,7 @@ function isTriggeredDrumPart(channel)
          return triggeredDrumParts[i].sLeft
       end
    end
-  
+   
    return false
 end
 
@@ -271,7 +274,7 @@ function love.load()
    --font = love.graphics.newFont( "resources/fonts/Impact Label.ttf", 15)
    love.graphics.setFont(font)
 
-    ui = {
+   ui = {
       back = love.graphics.newImage("resources/icons/back.png"),
       play = love.graphics.newImage("resources/icons/play.png"),
       pause = love.graphics.newImage("resources/icons/pause.png"),
@@ -294,9 +297,9 @@ function love.load()
       dropdownflipped = love.graphics.newImage("resources/icons/dropdownflipped.png"),
       add = love.graphics.newImage("resources/icons/add.png"),
       trash = love.graphics.newImage("resources/icons/trash.png")
-    }
+   }
    
-   --musicBar = createMusicBar()
+   musicBar = createMusicBar()
 
    
    browser = fileBrowser("assets", {}, {"wav", "WAV", "lua"})
@@ -348,7 +351,7 @@ function love.load()
       height = 300
    }
    
- 
+   
    beatAndBar = {bar=1, beat=1}
    
    timeData = {tempo=100,
@@ -400,96 +403,127 @@ end
 
 
 
- function renderPianoRollNotes()
-      love.graphics.setColor(0.5,0.5,0.5)
-      local startKey = 36 -- this is a C4
-      local octaves = 5
-      local amount = (12 * octaves)-1
+function renderPianoRollNotes()
+   love.graphics.setColor(0.5,0.5,0.5)
+   local startKey = 36 -- this is a C4
+   local octaves = 5
+   local amount = (12 * octaves)-1
+   local count = 0
+   local mx, my = love.mouse.getPosition()
+   for k,v in pairs(notes) do
+      --print(k)
+      --count = count+1
+      for t,vv in pairs(v) do
+         --print(count)
+         
+         if activeChannelIndex == k then -- k is the channelIndex
+            for i=1, #vv do
+               local thing = vv[i]
+             
 
-      for k,v in pairs(notes) do
-         for t,vv in pairs(v) do
-            if not vv.stop then
-               local x = canvasX + (k*canvasScale)
-               
-               local y = canvasY + amount*10   - (vv.key-startKey)*10
-               local w = vv.length * canvasScale
-               local h = 10
-               love.graphics.rectangle("fill", x,y,w,h)
+               if not thing.stop then
+                  local x = canvasX + (t*canvasScale)
+                  local y = canvasY + (amount+1)*10   - (thing.key-startKey)*10
+                  local w = thing.length * canvasScale
+                  local h = 10
+                  love.graphics.setColor(1,1,1)
+                  love.graphics.rectangle("fill", x,y,w,h)
+                  love.graphics.setColor(0,0,0)
+                  if pointInRect(mx,my,x,y,w,h) then
+                     love.graphics.setColor(0,1,0)
+                     if mouseState.click then
+                        love.graphics.setColor(1,0,0)
+                        --print('clickerdeclick', inspect(thing))
+                        channel.main2audio:push ( {playNotePianoRoll=thing} )
+                     end
+                     
+                  end
+                  love.graphics.rectangle("fill", x+2,y+2,w-4,h-4)
+
+               end
             end
+            
          end
       end
- end
-
-  function renderVerticalPianoRoll(startX, startY, width)
-      local startKey = 36 -- this is a C4
-      local octaves = 5
-      local whites = {0,2,4,5,7,9,11}
-      local amount = (12 * octaves)
-      
-      love.graphics.setColor(0.2,0.2,0.2,0.2)
-      love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*10)
-
-      
-      for i=0, amount do
-         local color = {0,0,0}
-
-         if isInTable((i%12), whites) then
-            color = {1,1,1}
+   end
+   if activeSources then
+         for j=1, #activeSources do
+          --  print(activeSources[j].key, inspect(activeSources[j]))
          end
+   end
+   
+end
 
-         love.graphics.setColor(0,0,0)
+function renderVerticalPianoRoll(startX, startY, width)
+   local startKey = 36 -- this is a C4
+   local octaves = 5
+   local whites = {0,2,4,5,7,9,11}
+   local amount = (12 * octaves)
+   
+   love.graphics.setColor(0.2,0.2,0.2,0.2)
+   love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*10)
 
-         local y = startY+ (amount)*10 - (i*10)
-         love.graphics.rectangle("line", startX, y, width, 10)
+   
+   for i=0, amount do
+      local color = {0,0,0}
 
-         love.graphics.setColor(color[1], color[2], color[3])
+      if isInTable((i%12), whites) then
+         color = {255/255, 246/255, 237/255}
+      end
 
-         if activeSources then
-            for j=1, #activeSources do
-               if activeSources[j].key ==  i + startKey then
-                  love.graphics.setColor(red[1], red[2], red[3])
-                  if activeSources[j].released==true then
-                     love.graphics.setColor(0.5,0.5,0.5)
-                  end
+      love.graphics.setColor(0.3,0,0)
+
+      local y = startY+ (amount)*10 - (i*10)
+      love.graphics.rectangle("line", startX, y, width, 10)
+
+      love.graphics.setColor(color[1], color[2], color[3])
+
+      if activeSources then
+         for j=1, #activeSources do
+            if activeSources[j].key ==  i + startKey then
+               love.graphics.setColor(red[1], red[2], red[3])
+               if activeSources[j].released==true then
+                  love.graphics.setColor(0.5,0.5,0.5)
                end
             end
          end
-         
-         love.graphics.rectangle("fill", startX, y, width, 10)
       end
       
+      love.graphics.rectangle("fill", startX, y, width, 10)
    end
    
+end
+
 
 
 function HSL(h, s, l, a)
-	if s<=0 then return l,l,l,a end
-	h, s, l = h/256*6, s/255, l/255
-	local c = (1-math.abs(2*l-1))*s
-	local x = (1-math.abs(h%2-1))*c
-	local m,r,g,b = (l-.5*c), 0,0,0
-	if h < 1     then r,g,b = c,x,0
-	elseif h < 2 then r,g,b = x,c,0
-	elseif h < 3 then r,g,b = 0,c,x
-	elseif h < 4 then r,g,b = 0,x,c
-	elseif h < 5 then r,g,b = x,0,c
-	else              r,g,b = c,0,x
-	end return (r+m),(g+m),(b+m),a
+   if s<=0 then return l,l,l,a end
+   h, s, l = h/256*6, s/255, l/255
+   local c = (1-math.abs(2*l-1))*s
+   local x = (1-math.abs(h%2-1))*c
+   local m,r,g,b = (l-.5*c), 0,0,0
+   if h < 1     then r,g,b = c,x,0
+   elseif h < 2 then r,g,b = x,c,0
+   elseif h < 3 then r,g,b = 0,c,x
+   elseif h < 4 then r,g,b = 0,x,c
+   elseif h < 5 then r,g,b = x,0,c
+   else              r,g,b = c,0,x
+   end return (r+m),(g+m),(b+m),a
 end
 
 local function rgbToHsl(r, g, b)
-    local max, min = math.max(r, g, b), math.min(r, g, b)
-    local b = max + min
-    local h = b / 2
-    if max == min then return 0, 0, h end
-    local s, l = h, h
-    local d = max - min
-    s = l > .5 and d / (2 - b) or d / b
-    if max == r then h = (g - b) / d + (g < b and 6 or 0)
-    elseif max == g then h = (b - r) / d + 2
-    elseif max == b then h = (r - g) / d + 4
-    end
-    return h * .16667, s, l
+   local max, min = math.max(r, g, b), math.min(r, g, b)
+   local b = max + min
+   local h = b / 2
+   if max == min then return 0, 0, h end
+   local s, l = h, h
+   local d = max - min
+   s = l > .5 and d / (2 - b) or d / b
+   if max == r then h = (g - b) / d + (g < b and 6 or 0)
+   elseif max == g then h = (b - r) / d + 2
+   elseif max == b then h = (r - g) / d + 4
+   end
+   return h * .16667, s, l
 end
 
 
@@ -501,10 +535,16 @@ function love.filedropped(file)
       local tab = (loadstring("return ".. str)())
 
       for i =1, #tab do
-         --print(tab[i].path)
+         --print("*******************")
+         --print(inspect(tab[i]))
+         --print("*******************")
+         --loadAndFillInstrumentRaw( tab[i].path)
+         
+        --print(i, tab[i].path)
          notes[i] = tab[i].notes
          
       end
+      channel.main2audio:push ( {loadInstrumentsForFile=tab} )
       channel.main2audio:push ( {notes=notes} )
       --print(inspect(tab))
    end
@@ -528,280 +568,197 @@ function drumParent(childIndex)
    
 end
 
+function renderInstruments(screenW)
+   --local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
 
-function love.draw()
-   love.graphics.setFont(font)
-   local screenW, screenH = love.graphics.getDimensions()
-   canvasWidth = screenW - instrWidth - margin*2
-   handleMouseClickStart()
-   love.graphics.clear(0.93, 0.89, 0.74)
-
-   if isPlaying and isRecording then
-      love.graphics.setColor(1,0,0)
-      love.graphics.rectangle("fill",0,0,screenW, 64)
-   end
+   --      print(canvasHeight * #instruments, screenH - canvasY)
+   local myHeight = canvasHeight
+   local runningY =  canvasY
    
-
-   
-   love.graphics.setColor(0.2, 0.2, 0.2)
-   love.graphics.print(tostring(love.timer.getFPS( )), 10, 10)
-   love.graphics.setColor(1,1,1)
-   love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
-   love.graphics.setColor(0.2, 0.2, 0.2)
-   love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
-
-   if activeSources then
-      love.graphics.print(#activeSources, 150, 12)
-   end
-   --renderMusicBar(musicBar)
-
-   if lastHitNote then
-      love.graphics.print(lastHitNote, 50, 10)
-   end
-   if lastHitSemitone then
-      love.graphics.print(lastHitSemitone, 100, 10)
-   end
-   
-
-
-   
-  
-
-   local save = imgbutton('save', ui.save, screenW-margin - 42 , 10  , 42, 42)
-   if save.clicked then
-      local channels = {}
-      for i = 1, #instruments do
-         local thing = {}
-         thing.path = instruments[i].path
-         thing.notes = notes[i]
-         channels[i] = thing
+   for i = 1, #instruments do
+      
+      
+      if instruments[i].isDrumKitPart then
+         myHeight = drumPartCanvasHeight
       end
-      love.filesystem.write(os.date("%Y%m%d%H%M%S.notes"), inspect(channels, {indent=""}))
-      love.system.openURL("file://"..love.filesystem.getSaveDirectory())
-      
-     
-   end
 
-
-   -- try and make this thing exactly 2 bars wide
-   --print(canvasScale)
-   -- timeData.signatureBeatPerBar
-   -- timeData.signatureUnit
-
-   local ticksPerUnit = 96 / (timeData.signatureUnit/4)
-   local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
-   local loopWidth = 4 * tickPerBar * canvasScale
-
-   if isLooping then
-      love.graphics.setColor(207/255,117/255,0/255)
-   else
-      love.graphics.setColor(0.2, 0.2, 0.2, 0.2)
-   end
-   
-   love.graphics.rectangle("fill", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
-   love.graphics.setColor(0,0,0)
-   love.graphics.rectangle("line", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
-
-   local loopclick =  getUIRect( 'loopclick', margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
-   if loopclick.clicked then
-      isLooping = not isLooping
-      channel.main2audio:push ( {isLooping=isLooping} )
-   end
-   
-   -- renderVerticalPianoRoll(canvasX-30, canvasY, 30)
-   -- renderPianoRollNotes()
-
-   
-   function renderInstruments()
-      --local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
-
-      --      print(canvasHeight * #instruments, screenH - canvasY)
-      local myHeight = canvasHeight
-      local runningY =  canvasY
-      
-      for i = 1, #instruments do
+      if not instruments[i].isDrumKitPart or
+      instruments[i].isDrumKitPart and instruments[drumParent(i)].uiDrumChildrenOpened then
          
-         
-         if instruments[i].isDrumKitPart then
-            myHeight = drumPartCanvasHeight
+         local index = i % 12 + 1 --math.floor(((lastTick/100) % #hues)+1)
+         local hue = hues[index]
+         local r,g,b =  HSL(hue, 25, 75, 1)
+         local active = activeChannelIndex == i
+         if active then
+            r,g,b =  HSL(hue, 100, 150, 1)
          end
 
-         if not instruments[i].isDrumKitPart or
-         instruments[i].isDrumKitPart and instruments[drumParent(i)].uiDrumChildrenOpened then
-            
-            local index = i % 12 + 1 --math.floor(((lastTick/100) % #hues)+1)
-            local hue = hues[index]
-            local r,g,b =  HSL(hue, 25, 75, 1)
+
+         
+         if instruments[i].isDrumKitPart then
+            --index = drumParent(i) % 12 + 1
+            hue = hues[drumParent(i) % 12 + 1]
+            r,g,b =  HSL(hue, 50, 75, 1)
             local active = activeChannelIndex == i
             if active then
                r,g,b =  HSL(hue, 100, 150, 1)
             end
 
+            local triggered = isTriggeredDrumPart(i)
+            if triggered then
+               --print('make another color?')
+               r,g,b =  HSL(hue, 200*(triggered), 150)
+            end
+            
 
-            
-            if instruments[i].isDrumKitPart then
-               --index = drumParent(i) % 12 + 1
-               hue = hues[drumParent(i) % 12 + 1]
-               r,g,b =  HSL(hue, 50, 75, 1)
-               local active = activeChannelIndex == i
-               if active then
-                  r,g,b =  HSL(hue, 100, 150, 1)
-               end
-
-               local triggered = isTriggeredDrumPart(i)
-               if triggered then
-                  --print('make another color?')
-                  r,g,b =  HSL(hue, 200*(triggered), 150)
-               end
-               
-
-            end
-               
-          
-            
-            local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
-            if label.clicked then
-               if showSettingsForInstrumentIndex > 0 then
-                  showSettingsForInstrumentIndex = i
-               end
-               
-               activeChannelIndex = i
-               channel.main2audio:push ( {activeChannelIndex=i} )
-            end
-            
-            if active then
-               love.graphics.setColor(r,g,b)
-               love.graphics.rectangle('fill',canvasX,   runningY, canvasWidth, myHeight)
-            end
-            
-            
-            renderMeasureBarsInSomeRect(canvasX, runningY, canvasWidth, myHeight, canvasScale)
-            --      print(inspect(notes[i]))
-            if notes[i] then
-               for k,v in pairs(notes[i]) do
-                  for t,vv in pairs(v) do
-                     --if not vv.stop then
-                     local x = canvasX + (k*canvasScale)
-                     
-                     --local y = canvasY + amount*10   - (vv.key-startKey)*10
-                     local y = mapInto(vv.key, 0, 144, 0, myHeight) --runningY
-                     y = runningY + myHeight - y
-                     --canvasY + (i-1)*myHeight + myHeight - vv.key
-                     local w = vv.length * canvasScale
-                     local h = canvasScale * 8
-                     love.graphics.setColor(0,0,0)
-                     love.graphics.rectangle("fill", x,y,w,h)
-                     love.graphics.setColor(1,1,1)
-                     love.graphics.print(vv.velocity, x,y )
-                     
-                     --end
-                  end
-               end
-            end
-            
-            
-            
-            renderPlayHead(canvasX, runningY, canvasWidth, myHeight, lastTick or 0, canvasScale)
-            if activeChannelIndex == i then
-               local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,runningY, 42, 42)
-               if eraser.clicked then
-                  notes[activeChannelIndex] ={}
-                  channel.main2audio:push ( {notes=notes} )
-               end
-            end
-            
-            
-            
-            love.graphics.setColor(r, g, b)
-            love.graphics.rectangle("fill", margin , runningY, instrWidth, myHeight)
-            
-            
-            love.graphics.setLineWidth(4)
-            love.graphics.setColor(0,0,0)
-            love.graphics.rectangle("line", margin , runningY, instrWidth, myHeight)
-            
-            
-            --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
-            local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
-           
-            if instruments[i].isDrumKitPart and instruments[i].kind ~= "" then
-               -- print('yo', i, instruments[i].path, inspect(instruments[i].sounds[1]))
-               --print( instruments[i].kind)
-               name = instruments[i].kind
-            end
-            
-           
-            local nameWidth = getStringWidth(name)
-            renderLabel(name, margin + (instrWidth-48)/2 - nameWidth/2, runningY + myHeight/2 - 10,
-                        margin+ 10, active and 1.0 or 0.25)
-            
-            if active then
-               local settings = imgbutton('settings'..i,
-                                          ui.settings, margin + instrWidth - 48 - 8,
-                                          runningY + myHeight/3,
-                                          24, 24,active and {1,1,1,1} or {1,1,1,0.25})
-               if settings.clicked then
-
-                  if (showSettingsForInstrumentIndex == i) then
-                     showSettingsForInstrumentIndex = 0
-                  else
-                     activeChannelIndex = i
-                     channel.main2audio:push ( {activeChannelIndex=i} )
-                     showSettingsForInstrumentIndex = i 
-                  end
-               end
-               
-               local volumetoggle = imgbutton('volume'..i,
-                         ui.volumeUp,margin + (instrWidth) - 24 - 4 ,
-                         runningY + myHeight/3,
-                         24, 24, active and {1,1,1,1} or {1,1,1,0.25})
-               if volumetoggle.clicked then
-                  instruments[i].uiVolumeOpened  = not instruments[i].uiVolumeOpened or false 
-                  print('now show or hide a slider ot volume this channel')
-               end
-               if instruments[i].uiVolumeOpened then
-                  local knob = h_slider('volumeForChannel'..i,
-                                  margin + (instrWidth),
-                                  runningY + myHeight/3,
-                                  200,
-                                  instruments[i].channelVolume or 1.0,
-                                  0, 2)
-                  if knob.value ~= nil then
-                     instruments[i].channelVolume = knob.value
-                     channel.main2audio:push ( {instrument=instruments[i]  });
-                  end
-               end
-               
-               if instruments[i].isDrumKit then
-                  local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
-                  imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 24,24 )
-
-                  -- local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
-                  local isOpen = instruments[i].uiDrumChildrenOpened or false
-                  local dropdownbutton = imgbutton("dropdown"..i, isOpen and ui.dropdownflipped or ui.dropdown , margin +instrWidth-32, drumbuttonY + canvasHeight-24, 24,24 )
-                  
-                  if dropdownbutton.clicked then
-                     instruments[i].uiDrumChildrenOpened = not instruments[i].uiDrumChildrenOpened
-                  end
-                  
-               end
-            end
-
-            runningY = runningY + myHeight
          end
+         
+         
+         
+         local label =  getUIRect( 'signat'..i, margin, runningY, instrWidth, myHeight)
+         if label.clicked then
+            if showSettingsForInstrumentIndex > 0 then
+               showSettingsForInstrumentIndex = i
+            end
+            
+            activeChannelIndex = i
+            channel.main2audio:push ( {activeChannelIndex=i} )
+         end
+         
+         if active then
+            love.graphics.setColor(r,g,b)
+            love.graphics.rectangle('fill',canvasX,   runningY, canvasWidth, myHeight)
+         end
+         
+         
+         renderMeasureBarsInSomeRect(canvasX, runningY, canvasWidth, myHeight, canvasScale)
+         --      print(inspect(notes[i]))
+         if notes[i] then
+            for k,v in pairs(notes[i]) do
+               for t,vv in pairs(v) do
+                  --if not vv.stop then
+                  local x = canvasX + (k*canvasScale)
+                  
+                  --local y = canvasY + amount*10   - (vv.key-startKey)*10
+                  local y = mapInto(vv.key, 0, 144, 0, myHeight) --runningY
+                  y = runningY + myHeight - y
+                  --canvasY + (i-1)*myHeight + myHeight - vv.key
+                  local w = vv.length * canvasScale
+                  local h = canvasScale * 8
+                  love.graphics.setColor(0,0,0)
+                  love.graphics.rectangle("fill", x,y,w,h)
+                  love.graphics.setColor(1,1,1)
+                  love.graphics.print(vv.velocity, x,y )
+                  
+                  --end
+               end
+            end
+         end
+         
+         if isRecording then
+            love.graphics.setColor(red[1],red[2],red[3],0.5)
+         else
+            love.graphics.setColor(1,1,1, 0.5)
+         end
+         renderPlayHead(canvasX, runningY, canvasWidth, myHeight, lastTick or 0, canvasScale)
+         if activeChannelIndex == i then
+            local eraser = imgbutton('erase', ui.eraser, screenW-margin-42 ,runningY, 42, 42)
+            if eraser.clicked then
+               notes[activeChannelIndex] ={}
+               channel.main2audio:push ( {notes=notes} )
+            end
+         end
+         
+         
+         
+         love.graphics.setColor(r, g, b)
+         love.graphics.rectangle("fill", margin , runningY, instrWidth, myHeight)
+         
+         
+         love.graphics.setLineWidth(4)
+         love.graphics.setColor(0,0,0)
+         love.graphics.rectangle("line", margin , runningY, instrWidth, myHeight)
+         
+         
+         --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
+         local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
+         
+         if instruments[i].isDrumKitPart and instruments[i].kind ~= "" then
+            -- print('yo', i, instruments[i].path, inspect(instruments[i].sounds[1]))
+            --print( instruments[i].kind)
+            name = instruments[i].kind
+         end
+         
+         
+         local nameWidth = getStringWidth(name)
+         renderLabel(name, margin + (instrWidth-48)/2 - nameWidth/2, runningY + myHeight/2 - 10,
+                     margin+ 10, active and 1.0 or 0.25)
+         
+         if active then
+            local settings = imgbutton('settings'..i,
+                                       ui.settings, margin + instrWidth - 48 - 8,
+                                       runningY + myHeight/3,
+                                       24, 24,active and {1,1,1,1} or {1,1,1,0.25})
+            if settings.clicked then
+
+               if (showSettingsForInstrumentIndex == i) then
+                  showSettingsForInstrumentIndex = 0
+               else
+                  activeChannelIndex = i
+                  channel.main2audio:push ( {activeChannelIndex=i} )
+                  showSettingsForInstrumentIndex = i 
+               end
+            end
+            
+            local volumetoggle = imgbutton('volume'..i,
+                                           ui.volumeUp,margin + (instrWidth) - 24 - 4 ,
+                                           runningY + myHeight/3,
+                                           24, 24, active and {1,1,1,1} or {1,1,1,0.25})
+            if volumetoggle.clicked then
+               instruments[i].uiVolumeOpened  = not instruments[i].uiVolumeOpened or false 
+               print('now show or hide a slider ot volume this channel')
+            end
+            if instruments[i].uiVolumeOpened then
+               local knob = h_slider('volumeForChannel'..i,
+                                     margin + (instrWidth),
+                                     runningY + myHeight/3,
+                                     200,
+                                     instruments[i].channelVolume or 1.0,
+                                     0, 2)
+               if knob.value ~= nil then
+                  instruments[i].channelVolume = knob.value
+                  channel.main2audio:push ( {instrument=instruments[i]  });
+               end
+            end
+            
+            if instruments[i].isDrumKit then
+               local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
+               imgbutton("drumpattern"..i,ui.grid, margin, drumbuttonY, 24,24 )
+
+               -- local drumbuttonY = topBarHeight + margin + (i-1)*myHeight
+               local isOpen = instruments[i].uiDrumChildrenOpened or false
+               local dropdownbutton = imgbutton("dropdown"..i, isOpen and ui.dropdownflipped or ui.dropdown , margin +instrWidth-32, drumbuttonY + canvasHeight-24, 24,24 )
+               
+               if dropdownbutton.clicked then
+                  instruments[i].uiDrumChildrenOpened = not instruments[i].uiDrumChildrenOpened
+               end
+               
+            end
+         end
+
+         runningY = runningY + myHeight
       end
-
-      --imgbutton("add-instrument", ui.add, margin-2, runningY+2, 40, 40)
-      --print(runningY)
-
-
-
-     
    end
 
-   renderInstruments()
+   --imgbutton("add-instrument", ui.add, margin-2, runningY+2, 40, 40)
+   --print(runningY)
+
+
+
    
-   function drawDrumGrid()
+end
+
+function drawDrumGrid(tickPerBar)
 
    --[[
       
@@ -879,7 +836,7 @@ function love.draw()
    
 
    
- 
+   
 
    
    --love.graphics.setColor(0,0,0)
@@ -908,21 +865,96 @@ function love.draw()
                               drumY, scaledWidth, scaledHeight *  #names)
    end
    
+end
+
+
+function love.draw()
+   handleMouseClickStart()
+
+   love.graphics.setFont(font)
+   love.graphics.setLineWidth(3)
+   local screenW, screenH = love.graphics.getDimensions()
+   canvasWidth = screenW - instrWidth - margin*2
+   love.graphics.clear(0.93, 0.89, 0.74)
+
+   if isPlaying and isRecording then
+      love.graphics.setColor(1,0,0)
+      love.graphics.rectangle("fill",0,0,screenW, 64)
+   end
+   
+
+   
+   love.graphics.setColor(0.2, 0.2, 0.2)
+   love.graphics.print(tostring(love.timer.getFPS( )), 10, 10)
+   love.graphics.setColor(1,1,1)
+   love.graphics.print(tostring(love.timer.getFPS( )), 11, 11)
+   love.graphics.setColor(0.2, 0.2, 0.2)
+   love.graphics.print(tostring(love.timer.getFPS( )), 12, 12)
+
+   if activeSources then
+      love.graphics.print(#activeSources, 150, 12)
+   end
+   renderMusicBar(musicBar)
+   love.graphics.setLineWidth(3)
+   if lastHitNote then
+      love.graphics.print(lastHitNote, 50, 10)
+   end
+   if lastHitSemitone then
+      love.graphics.print(lastHitSemitone, 100, 10)
+   end
+   
+
+   local save = imgbutton('save', ui.save, screenW-margin - 42 , 10  , 42, 42)
+   if save.clicked then
+      local channels = {}
+      for i = 1, #instruments do
+         local thing = {}
+         thing.path = instruments[i].path
+         thing.notes = notes[i]
+         channels[i] = thing
+      end
+      love.filesystem.write(os.date("%Y%m%d%H%M%S.notes"), inspect(channels, {indent=""}))
+      love.system.openURL("file://"..love.filesystem.getSaveDirectory())
    end
 
-  -- drawDrumGrid()
-  
+   local ticksPerUnit = 96 / (timeData.signatureUnit/4)
+   local tickPerBar = timeData.signatureBeatPerBar * ticksPerUnit
+   local loopWidth = 4 * tickPerBar * canvasScale
+
+   if isLooping then
+      love.graphics.setColor(207/255,117/255,0/255)
+   else
+      love.graphics.setColor(0.2, 0.2, 0.2, 0.2)
+   end
+   
+   love.graphics.rectangle("fill", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+   love.graphics.setColor(0,0,0)
+   love.graphics.rectangle("line", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+
+   local loopclick =  getUIRect( 'loopclick', margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+   if loopclick.clicked then
+      isLooping = not isLooping
+      channel.main2audio:push ( {isLooping=isLooping} )
+   end
+   
+   
+   renderInstruments(screenW)
+   renderVerticalPianoRoll(canvasX-30, canvasY, 30)
+   renderPianoRollNotes()
+   --drawDrumGrid(tickPerBar)
+   -- drawDrumGrid()
+   
    
    --print(tickPerBar, canvasScale)
 
-    
+   
    tapedeckButtons()
    
 
    love.graphics.setFont(fontLarge)
 
    local beatString = string.format("%02d", beatAndBar.bar).."."..string.format("%02d", beatAndBar.beat)
-   --()
+
    local ww = fontLarge:getWidth(beatString)
    love.graphics.setColor(0,0,0, .75)
    love.graphics.rectangle('fill', 460 - 10, 10, ww + 20, 48)
@@ -936,14 +968,14 @@ function love.draw()
       channel.main2audio:push ( {metronomeOn=metronomeOn} )
 
    end
-   local met = imgbutton('preorll', ui.preroll, 640, 40, 24, 24, preroll and {1,0,0} or {1,1,1})
+   local met = imgbutton('preroll', ui.preroll, 640, 40, 24, 24, preroll and {1,0,0} or {1,1,1})
    if met.clicked then
       preroll = not preroll
       channel.main2audio:push ( {preroll=preroll} )
 
    end
    
-  
+   
    love.graphics.setLineWidth(3)
    love.graphics.setFont(fontMiddle)
    love.graphics.setColor(0,0,0)
@@ -954,6 +986,7 @@ function love.draw()
 
    
    love.graphics.print(math.floor(timeData.tempo), 900, 20)
+   love.graphics.print("abcdefgh\nijklmnop", 1000, 20)
    local bpm =  getUIRect( 'bpm_flip',900, 20, 64, 32)
    if bpm.clicked then
       showBPM = not showBPM
@@ -1051,7 +1084,7 @@ function love.draw()
    end
    
    
-  
+   
    
 
    if instrument then
@@ -1072,7 +1105,7 @@ function love.draw()
             end
          end
          renderLabel("end", lpUI.x-50 , lpUI.y - lpUI.height/2 - 40)
-          renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
+         renderLabel(math.floor(instrument.sounds[1].sample.loopEnd), lpUI.x+lpUI.width , lpUI.y - lpUI.height/2 - 40)
          local ep = h_slider('endPos', lpUI.x , lpUI.y - lpUI.height/2 - 40, 500, s.loopEnd, 0, s.soundData:getSampleCount( )-1)
          
          if ep.value then
@@ -1204,23 +1237,3 @@ function renderPlayingSoundBar(x,y, width, height)
 
 end
 
-
-   -- function renderPianoRollNotes()
-      -- love.graphics.setColor(0.5,0.5,0.5)
-      -- local startKey = 36 -- this is a C4
-      -- local octaves = 5
-      -- local amount = (12 * octaves)-1
-
-      -- for k,v in pairs(notes) do
-      --    for t,vv in pairs(v) do
-      --       if not vv.stop then
-      --          local x = canvasX + (k*canvasScale)
-               
-      --          local y = canvasY + amount*10   - (vv.key-startKey)*10
-      --          local w = vv.length * canvasScale
-      --          local h = 10
-      --          love.graphics.rectangle("fill", x,y,w,h)
-      --       end
-      --    end
-      -- end
-      -- end
