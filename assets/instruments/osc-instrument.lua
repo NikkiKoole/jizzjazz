@@ -13,6 +13,6 @@ return {
       usePitchForADSR = false,
    },
    sounds = {
-      {sample = {path="assets/oscillators/akwf/AKWF_stringbox/AKWF_cheeze_0003.wav", root=72}},
+      {sample = {path="assets/oscillators/akwf/stringbox/cheeze_0003.wav", root=72}},
    }
 }

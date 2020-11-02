@@ -239,6 +239,106 @@ function drawToggle(id, x,y, state)
 end
 
 
+function pianoRollNote(id,x,y,width,height, original)
+    local mx, my = love.mouse.getPosition()
+   love.graphics.setColor(1,1,1)
+   love.graphics.rectangle("fill", x,y,width,height)
+   love.graphics.setColor(0,0,0)
+   local hover = false
+   if pointInRect(mx,my,x,y,width,height) then
+      hover = true
+      love.graphics.setColor(0,1,0)
+      lastDraggedElement = {id=id, type='pianorollnote', original=original}
+      mouseState.hoveredSomething = true
+
+   end
+
+   local drag = false
+   if love.mouse.isDown(1 ) then
+      if lastDraggedElement and lastDraggedElement.id == id then
+         drag = true
+      end
+   end
+   
+         
+   love.graphics.rectangle("fill", x+3,y+3,width-6,height-6)
+
+   return {
+      click=hover and mouseState.click,
+      drag = drag
+   }
+end
+
+function scrollbarV(id, x,y, height, contentHeight, scrollOffset)
+   
+
+   -- the thumb
+   local scrollBarThumbH = height
+   if contentHeight > height then
+      scrollBarThumbH = (height / contentHeight) * height
+   end
+
+   local pxScrollOffset = mapInto(scrollOffset, 0, contentHeight-height, 0, height-scrollBarThumbH)
+
+   local result= nil
+   local draggedResult = false
+   local mx, my = love.mouse.getPosition( )
+   local hover = false
+   if pointInRect(mx, my, x, y+pxScrollOffset,32,scrollBarThumbH) then
+       hover = true
+   end
+   
+   local alpha =  (lastDraggedElement and lastDraggedElement.id == id or hover ) and 0.8 or 0.5 
+   love.graphics.setColor(0,0,0,alpha)
+   love.graphics.setLineWidth(2)
+   love.graphics.rectangle("line",x, y, 32, height)
+   love.graphics.rectangle("fill", x, y+pxScrollOffset, 32, scrollBarThumbH)
+   
+   
+
+   if hover then
+      mouseState.hoveredSomething = true
+      love.mouse.setCursor(cursors.hand)
+      if mouseState.click then
+         lastDraggedElement = {id=id}
+	 mouseState.hoveredSomething = true
+	 mouseState.offset = {x=x - mx, y=(pxScrollOffset+y)-my}
+      end
+   end
+
+    if love.mouse.isDown(1 ) then
+      if lastDraggedElement and lastDraggedElement.id == id then
+	 mouseState.hoveredSomething = true
+	 love.mouse.setCursor(cursors.hand)
+
+         local mx, my = love.mouse.getPosition( )
+         result = mapInto(my + mouseState.offset.y,
+                          y, y+height-scrollBarThumbH,
+                          0, height-scrollBarThumbH)
+	 if result < 0 then
+	     result = 0
+	 end
+         if result > height-scrollBarThumbH then
+            result = height-scrollBarThumbH
+         end
+
+         result = mapInto(result, 0, height-scrollBarThumbH, 0, contentHeight-height )
+      end
+
+      
+    end
+
+   
+    
+ return {
+      value=result
+   }
+
+
+   
+end
+
+
 function v_slider(id, x, y, height, v, min, max)
    love.graphics.setColor(0.3, 0.3, 0.3)
    love.graphics.rectangle('fill',x+8,y,3,height )

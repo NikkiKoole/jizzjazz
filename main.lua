@@ -19,6 +19,70 @@ function isInTable(value, tab)
    return false
 end
 
+function mapInto(x, in_min, in_max, out_min, out_max)
+   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end
+
+function getStringWidth(str)
+   return font:getWidth( str )
+end
+
+function round(num, numDecimalPlaces)
+   local mult = 10^(numDecimalPlaces or 0)
+   return math.floor(num * mult + 0.5) / mult
+end
+
+function stringEndsWith(str, ending)
+   return ending == "" or str:sub(-#ending) == ending
+end
+
+function removeSubstring(str, sub)
+    return str:gsub(sub, "")
+end
+
+function mysplit (inputstr, sep)
+   if sep == nil then
+      sep = "%s"
+   end
+   local t={}
+   for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+      table.insert(t, str)
+   end
+   return t
+end
+
+
+function HSL(h, s, l, a)
+   if s<=0 then return l,l,l,a end
+   h, s, l = h/256*6, s/255, l/255
+   local c = (1-math.abs(2*l-1))*s
+   local x = (1-math.abs(h%2-1))*c
+   local m,r,g,b = (l-.5*c), 0,0,0
+   if h < 1     then r,g,b = c,x,0
+   elseif h < 2 then r,g,b = x,c,0
+   elseif h < 3 then r,g,b = 0,c,x
+   elseif h < 4 then r,g,b = 0,x,c
+   elseif h < 5 then r,g,b = x,0,c
+   else              r,g,b = c,0,x
+   end return (r+m),(g+m),(b+m),a
+end
+
+local function rgbToHsl(r, g, b)
+   local max, min = math.max(r, g, b), math.min(r, g, b)
+   local b = max + min
+   local h = b / 2
+   if max == min then return 0, 0, h end
+   local s, l = h, h
+   local d = max - min
+   s = l > .5 and d / (2 - b) or d / b
+   if max == r then h = (g - b) / d + (g < b and 6 or 0)
+   elseif max == g then h = (b - r) / d + 2
+   elseif max == b then h = (r - g) / d + 4
+   end
+   return h * .16667, s, l
+end
+
+
 function love.keypressed(key)
    if key == 'escape' then
       channel.main2audio:push ( "quit" );
@@ -81,17 +145,6 @@ function love.keypressed(key)
 end
 
 
-
-function mysplit (inputstr, sep)
-   if sep == nil then
-      sep = "%s"
-   end
-   local t={}
-   for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
-      table.insert(t, str)
-   end
-   return t
-end
 
 function love.wheelmoved(a,b)
    handleMusicBarWheelMoved(musicBar, a,b)
@@ -207,17 +260,7 @@ function love.mousepressed(x,y)
    handleMusicBarClicked(musicBar,x,y)
 end
 
-function stringEndsWith(str, ending)
-   return ending == "" or str:sub(-#ending) == ending
-end
 
-
-
-
-function round(num, numDecimalPlaces)
-   local mult = 10^(numDecimalPlaces or 0)
-   return math.floor(num * mult + 0.5) / mult
-end
 
 function love.mousereleased(x,y)
    handleMusicBarMouseReleased(musicBar,x,y)
@@ -237,8 +280,32 @@ function love.mousereleased(x,y)
       if lastDraggedElement.id == 'startPos' or lastDraggedElement.id == 'endPos' then
          channel.main2audio:push( {instrumentStartEnd=instrument} );
       end
+      if lastDraggedElement.type == 'pianorollnote' then
+         print('dropping a note somewhere', inspect(lastDraggedElement))
+
+         assert(notes[activeChannelIndex])
+         --print(inspect(notes[activeChannelIndex]))
+         --print(lastDraggedElement.original.startTick)
+         assert(notes[activeChannelIndex][lastDraggedElement.original.startTick])
+         --print(inspect(notes[activeChannelIndex][lastDraggedElement.original.startTick]))
+         local h = notes[activeChannelIndex][lastDraggedElement.original.startTick]
+         notes[activeChannelIndex][lastDraggedElement.original.startTick][1].key = lastDraggedElement.newKey
+         channel.main2audio:push ( {notes=notes} )
+         lastDraggedElement = nil
+
+         -- for k,v in pairs(notes) do
+         --    if activeChannelIndex == k then -- k is the channelIndex
+         --       for t,vv in pairs(v) do
+         --          print(inspect(v[lastDraggedElement.original.startTick]))
+         --          --print("yolo!", k, inspect(v))
+         --       end
+         --    end
+         -- end
+         
+      end
       
    end
+   
    
 
    
@@ -322,7 +389,7 @@ function love.load()
       click = false,
       offset = {x=0, y=0}
    }
-
+   
    
    renderSoundData = nil
    playingSound = nil
@@ -334,7 +401,7 @@ function love.load()
    channel.audio2main	= love.thread.getChannel ( "audio2main" ); -- from thread
    channel.main2audio	= love.thread.getChannel ( "main2audio" ); -- from main
 
-
+   pianoRollScrollY = 0
 
    notes = {
       -- i want an index which is the lastTick can you have multiple notes starting at exact same index ?
@@ -367,9 +434,10 @@ function love.load()
    metronomeOn = false   
    topBarHeight = 96
    margin = 32
-   instrWidth = 240
+   instrWidth = 200
    canvasScale = .25
-   canvasX = instrWidth + margin
+   pianoRollKeyWidth = 24
+   canvasX = instrWidth + margin + pianoRollKeyWidth
    canvasY = topBarHeight + margin
    canvasWidth = 144 -- will be overrtiiten inloop
    canvasHeight = 80
@@ -387,166 +455,127 @@ end
 
 
 
-function mapInto(x, in_min, in_max, out_min, out_max)
-   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
-end
-
-
-function getStringWidth(str)
-   return font:getWidth( str )
-end
-
-function round(num, numDecimalPlaces)
-   local mult = 10^(numDecimalPlaces or 0)
-   return math.floor(num * mult + 0.5) / mult
-end
-
-
-
-function renderPianoRollNotes()
+function renderPianoRollNotes(startKey, endKey, scrollY, h, maxHeight)
    love.graphics.setColor(0.5,0.5,0.5)
-   local startKey = 36 -- this is a C4
-   local octaves = 5
-   local amount = (12 * octaves)-1
+   local amount = endKey - startKey
    local count = 0
    local mx, my = love.mouse.getPosition()
+   
    for k,v in pairs(notes) do
-      --print(k)
-      --count = count+1
       for t,vv in pairs(v) do
-         --print(count)
          
          if activeChannelIndex == k then -- k is the channelIndex
             for i=1, #vv do
                local thing = vv[i]
-             
 
                if not thing.stop then
                   local x = canvasX + (t*canvasScale)
-                  local y = canvasY + (amount+1)*10   - (thing.key-startKey)*10
+                  local y = -scrollY + canvasY + amount*h  - (thing.key-startKey)*h
                   local w = thing.length * canvasScale
-                  local h = 10
-                  love.graphics.setColor(1,1,1)
-                  love.graphics.rectangle("fill", x,y,w,h)
-                  love.graphics.setColor(0,0,0)
-                  if pointInRect(mx,my,x,y,w,h) then
-                     love.graphics.setColor(0,1,0)
-                     if mouseState.click then
-                        love.graphics.setColor(1,0,0)
-                        --print('clickerdeclick', inspect(thing))
-                        channel.main2audio:push ( {playNotePianoRoll=thing} )
-                     end
-                     
-                  end
-                  love.graphics.rectangle("fill", x+2,y+2,w-4,h-4)
+                  local n = pianoRollNote(x..','..y, x,y,w,h, thing)
+                  --lastDraggedElement
+                  if n.drag then
+                     love.graphics.setColor(1, 1, 1)
+                     --print( math.floor(my/h) * h)
+                     --love.graphics.rectangle('fill', x, -2 + math.floor(my/h) * h, 10, h)
 
+                     local t3 = (my - (canvasY + (amount*h))) / h -- , <-- this is the new key of the dragged one 
+
+                     local newKey =  math.ceil((t3- startKey)*-1)
+                     local newY =  -scrollY + canvasY + amount*h  - (newKey-startKey)*h
+                     --newY = newY lY
+                     --
+
+                     
+                     love.graphics.rectangle('fill', x, newY , 10, h)
+
+                     assert(lastDraggedElement and lastDraggedElement.type == "pianorollnote")
+                     lastDraggedElement.newKey = newKey
+                     --print(thing.key , math.ceil((t3- startKey)*-1) )
+                     --print(inspect(thing))
+                  end
+                  
+                  if n.click then
+                     channel.main2audio:push ( {playNotePianoRoll=thing} )
+                  end
                end
+               
             end
-            
          end
       end
    end
-   if activeSources then
-         for j=1, #activeSources do
-          --  print(activeSources[j].key, inspect(activeSources[j]))
-         end
-   end
-   
 end
 
-function renderVerticalPianoRoll(startX, startY, width)
-   local startKey = 36 -- this is a C4
-   local octaves = 5
+function renderVerticalPianoRoll(startX, startY, width, startKey, endKey, scrollY, h, maxHeight)
+   --local startKey = 36 - 12 - 12 - 12-- this is a C4
+   --local octaves = 5
    local whites = {0,2,4,5,7,9,11}
-   local amount = (12 * octaves)
-   
+   local amount = endKey-startKey 
+   --local amount = (12 * octaves)
+
    love.graphics.setColor(0.2,0.2,0.2,0.2)
-   love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*10)
+   love.graphics.rectangle("fill", startX+width, startY, canvasWidth, (amount+1)*h)
 
    
-   for i=0, amount do
+   for i=0, amount  do
       local color = {0,0,0}
 
       if isInTable((i%12), whites) then
          color = {255/255, 246/255, 237/255}
       end
+      
+      local y = -scrollY + startY+ (amount)*h - (i*h)
+      if y >= startY and y < maxHeight then
+         love.graphics.setColor(0.3,0,0)
+         
+         love.graphics.rectangle("line", startX, y, width, h)
 
-      love.graphics.setColor(0.3,0,0)
+         love.graphics.setColor(color[1], color[2], color[3])
 
-      local y = startY+ (amount)*10 - (i*10)
-      love.graphics.rectangle("line", startX, y, width, 10)
-
-      love.graphics.setColor(color[1], color[2], color[3])
-
-      if activeSources then
-         for j=1, #activeSources do
-            if activeSources[j].key ==  i + startKey then
-               love.graphics.setColor(red[1], red[2], red[3])
-               if activeSources[j].released==true then
-                  love.graphics.setColor(0.5,0.5,0.5)
+         if activeSources then
+            for j=1, #activeSources do
+               if activeSources[j].key ==  i + startKey then
+                  love.graphics.setColor(red[1], red[2], red[3])
+                  if activeSources[j].released==true then
+                     love.graphics.setColor(0.5,0.5,0.5)
+                  end
                end
             end
          end
+         
+         love.graphics.rectangle("fill", startX, y, width, h)
+         local n = getUIRect(startX..','..y..'_solid', startX,y,width,h)
+         if n.clicked then
+            local note = {
+                key = startKey + i,
+                length = 10,
+                velocity = 100
+            }
+            channel.main2audio:push ( {playNotePianoRoll=note} )
+         end
+         
       end
       
-      love.graphics.rectangle("fill", startX, y, width, 10)
    end
    
 end
 
 
 
-function HSL(h, s, l, a)
-   if s<=0 then return l,l,l,a end
-   h, s, l = h/256*6, s/255, l/255
-   local c = (1-math.abs(2*l-1))*s
-   local x = (1-math.abs(h%2-1))*c
-   local m,r,g,b = (l-.5*c), 0,0,0
-   if h < 1     then r,g,b = c,x,0
-   elseif h < 2 then r,g,b = x,c,0
-   elseif h < 3 then r,g,b = 0,c,x
-   elseif h < 4 then r,g,b = 0,x,c
-   elseif h < 5 then r,g,b = x,0,c
-   else              r,g,b = c,0,x
-   end return (r+m),(g+m),(b+m),a
-end
-
-local function rgbToHsl(r, g, b)
-   local max, min = math.max(r, g, b), math.min(r, g, b)
-   local b = max + min
-   local h = b / 2
-   if max == min then return 0, 0, h end
-   local s, l = h, h
-   local d = max - min
-   s = l > .5 and d / (2 - b) or d / b
-   if max == r then h = (g - b) / d + (g < b and 6 or 0)
-   elseif max == g then h = (b - r) / d + 2
-   elseif max == b then h = (r - g) / d + 4
-   end
-   return h * .16667, s, l
-end
-
 
 function love.filedropped(file)
    local filename = file:getFilename()
-   if stringEndsWith(filename, '.notes') then
 
+   if stringEndsWith(filename, '.notes') then
       local str = file:read('string')
       local tab = (loadstring("return ".. str)())
 
       for i =1, #tab do
-         --print("*******************")
-         --print(inspect(tab[i]))
-         --print("*******************")
-         --loadAndFillInstrumentRaw( tab[i].path)
-         
-        --print(i, tab[i].path)
          notes[i] = tab[i].notes
-         
       end
+      
       channel.main2audio:push ( {loadInstrumentsForFile=tab} )
       channel.main2audio:push ( {notes=notes} )
-      --print(inspect(tab))
    end
    
 end
@@ -563,19 +592,22 @@ function drumParent(childIndex)
       if instruments[i].isDrumKit then
          return i
       end
-      
    end
-   
 end
 
 function renderInstruments(screenW)
    --local hues = {0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330}
 
    --      print(canvasHeight * #instruments, screenH - canvasY)
-   local myHeight = canvasHeight
+   
    local runningY =  canvasY
    
    for i = 1, #instruments do
+
+      local myHeight =  32 -- todo make this a toggle in itself
+      if activeChannelIndex == i then
+         myHeight = canvasHeight
+      end
       
       
       if instruments[i].isDrumKitPart then
@@ -682,7 +714,8 @@ function renderInstruments(screenW)
          
          --local name = getInstrumentName(instruments[i].sounds[1].sample.path)
          local name = instruments[i].path or getInstrumentName(instruments[i].sounds[1].sample.path)
-         
+         name = removeSubstring(name, ".lua")
+          name = removeSubstring(name, ".wav")
          if instruments[i].isDrumKitPart and instruments[i].kind ~= "" then
             -- print('yo', i, instruments[i].path, inspect(instruments[i].sounds[1]))
             --print( instruments[i].kind)
@@ -691,7 +724,7 @@ function renderInstruments(screenW)
          
          
          local nameWidth = getStringWidth(name)
-         renderLabel(name, margin + (instrWidth-48)/2 - nameWidth/2, runningY + myHeight/2 - 10,
+         renderLabel(name, margin + 10, runningY + myHeight/2 - 10,
                      margin+ 10, active and 1.0 or 0.25)
          
          if active then
@@ -746,7 +779,7 @@ function renderInstruments(screenW)
             end
          end
 
-         runningY = runningY + myHeight
+         runningY = runningY + myHeight + 10
       end
    end
 
@@ -874,7 +907,7 @@ function love.draw()
    love.graphics.setFont(font)
    love.graphics.setLineWidth(3)
    local screenW, screenH = love.graphics.getDimensions()
-   canvasWidth = screenW - instrWidth - margin*2
+   canvasWidth = screenW - (instrWidth + pianoRollKeyWidth)  - margin*2
    love.graphics.clear(0.93, 0.89, 0.74)
 
    if isPlaying and isRecording then
@@ -927,9 +960,9 @@ function love.draw()
       love.graphics.setColor(0.2, 0.2, 0.2, 0.2)
    end
    
-   love.graphics.rectangle("fill", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+   love.graphics.rectangle("fill", margin+instrWidth+pianoRollKeyWidth, margin+topBarHeight-32, loopWidth, 24)
    love.graphics.setColor(0,0,0)
-   love.graphics.rectangle("line", margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
+   love.graphics.rectangle("line", margin+instrWidth+pianoRollKeyWidth, margin+topBarHeight-32, loopWidth, 24)
 
    local loopclick =  getUIRect( 'loopclick', margin+instrWidth, margin+topBarHeight-32, loopWidth, 24)
    if loopclick.clicked then
@@ -939,8 +972,18 @@ function love.draw()
    
    
    renderInstruments(screenW)
-   renderVerticalPianoRoll(canvasX-30, canvasY, 30)
-   renderPianoRollNotes()
+   local h = 10
+   local maxHeight = 400
+   renderVerticalPianoRoll(canvasX-pianoRollKeyWidth, canvasY, pianoRollKeyWidth, 0, 120, pianoRollScrollY, h, maxHeight + canvasY)
+   renderPianoRollNotes(0, 120, pianoRollScrollY, h, maxHeight)
+   love.graphics.setColor(0,0,0)
+   
+   local prsY =  scrollbarV('pianorollscroll', screenW-margin,canvasY, maxHeight, 121 * h, pianoRollScrollY)
+   if prsY.value ~= nil then
+      --print(prsY.value)
+      pianoRollScrollY = prsY.value
+   end
+   
    --drawDrumGrid(tickPerBar)
    -- drawDrumGrid()
    

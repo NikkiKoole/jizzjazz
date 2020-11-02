@@ -92,7 +92,7 @@ end
 
 --instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("bass-upright.lua"))
 
-instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes.lua"))
+instruments[1] =  loadAndFillInstrument(readAsInstrumentFile("rhodes-all.lua"))
 instruments[2] =  loadAndFillInstrument(readAsInstrumentFile("guitar-jazz.lua"))
 instruments[3] =  loadAndFillInstrument(readAsInstrumentFile("recorder.lua"))
 instruments[4] =  loadAndFillInstrument(readAsInstrumentFile("banjo.lua"))
