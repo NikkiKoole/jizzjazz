@@ -248,13 +248,17 @@ function pianoRollNote(id,x,y,width,height, original)
    if pointInRect(mx,my,x,y,width,height) then
       hover = true
       love.graphics.setColor(0,1,0)
-      lastDraggedElement = {id=id, type='pianorollnote', original=original}
+      
       mouseState.hoveredSomething = true
 
    end
 
    local drag = false
    if love.mouse.isDown(1 ) then
+      if hover then
+         lastDraggedElement = {id=id, type='pianorollnote', original=original}
+      end
+      
       if lastDraggedElement and lastDraggedElement.id == id then
          drag = true
       end

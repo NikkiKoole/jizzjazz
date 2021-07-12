@@ -288,10 +288,19 @@ function love.mousereleased(x,y)
          --print(lastDraggedElement.original.startTick)
          assert(notes[activeChannelIndex][lastDraggedElement.original.startTick])
          --print(inspect(notes[activeChannelIndex][lastDraggedElement.original.startTick]))
+
+         local delete = love.keyboard.isDown( 'delete' )
+         if (delete) then
+            print('wopie!')
+            notes[activeChannelIndex][lastDraggedElement.original.startTick] = nil
+         else
+         
+         
          local h = notes[activeChannelIndex][lastDraggedElement.original.startTick]
          notes[activeChannelIndex][lastDraggedElement.original.startTick][1].key = lastDraggedElement.newKey
+         end
          channel.main2audio:push ( {notes=notes} )
-         lastDraggedElement = nil
+         
 
          -- for k,v in pairs(notes) do
          --    if activeChannelIndex == k then -- k is the channelIndex
@@ -473,26 +482,26 @@ function renderPianoRollNotes(startKey, endKey, scrollY, h, maxHeight)
                   local y = -scrollY + canvasY + amount*h  - (thing.key-startKey)*h
                   local w = thing.length * canvasScale
                   local n = pianoRollNote(x..','..y, x,y,w,h, thing)
-                  --lastDraggedElement
+                  
                   if n.drag then
                      love.graphics.setColor(1, 1, 1)
-                     --print( math.floor(my/h) * h)
-                     --love.graphics.rectangle('fill', x, -2 + math.floor(my/h) * h, 10, h)
-
-                     local t3 = (my - (canvasY + (amount*h))) / h -- , <-- this is the new key of the dragged one 
-
+                     local t3 = ((my+scrollY) - (canvasY + (amount*h))) / h -- , <-- this is the new key of the dragged 
                      local newKey =  math.ceil((t3- startKey)*-1)
                      local newY =  -scrollY + canvasY + amount*h  - (newKey-startKey)*h
-                     --newY = newY lY
-                     --
-
                      
                      love.graphics.rectangle('fill', x, newY , 10, h)
 
                      assert(lastDraggedElement and lastDraggedElement.type == "pianorollnote")
+                     if lastDraggedElement.newKey ~= nil and lastDraggedElement.newKey ~= newKey then
+                        local note = {
+                           key = newKey,
+                           length = 3,
+                           velocity =  lastDraggedElement.original.velocity
+                        }
+                        channel.main2audio:push ( {playNotePianoRoll=note} )
+                     end
+                     
                      lastDraggedElement.newKey = newKey
-                     --print(thing.key , math.ceil((t3- startKey)*-1) )
-                     --print(inspect(thing))
                   end
                   
                   if n.click then
@@ -562,6 +571,13 @@ end
 
 
 
+local midiParser = require( "midi-parser" )
+
+function findLengthOfMidiNote()
+
+end
+
+
 
 function love.filedropped(file)
    local filename = file:getFilename()
@@ -576,6 +592,82 @@ function love.filedropped(file)
       
       channel.main2audio:push ( {loadInstrumentsForFile=tab} )
       channel.main2audio:push ( {notes=notes} )
+   end
+   if stringEndsWith(filename, '.mid') then
+      local parsed = midiParser(filename)
+      --print(#parsed.tracks)
+      if #parsed.tracks == 1 and parsed.tracks[1] then
+         print(parsed.format, parsed.timebase)
+         --if bpm.value ~= nil then
+         timeData.tempo =  math.floor( parsed.timebase)
+            channel.main2audio:push ( {timeData=timeData} )
+         --end
+         local resultNotes = {}
+         local runningTime = 0
+         for i = 1, #parsed.tracks[1].messages do
+            --print(inspect(parsed.tracks[1].messages[i]))
+            local m = parsed.tracks[1].messages[i]
+            if m.channel == 0 then
+               print(m.number, m.type, m.time, m.velocity, runningTime)
+               runningTime = runningTime + m.time
+ 
+               if m.type == 'off' then
+                  -- a bit lazy conversion to my format
+                  -- i think i wanna more closely copy midi
+                  -- but for now this is working
+                  local runningLength = 0--m.time
+                  for j = i-1, 1, -1 do
+                     
+                     runningLength = runningLength + parsed.tracks[1].messages[j].time 
+                     if parsed.tracks[1].messages[j].number == m.number then
+                     --print('break')
+                     --print('runningLength', runningLength, m.type, parsed.tracks[1].messages[j].type)
+                        local startTick = runningTime - runningLength
+
+                        resultNotes[startTick] = {{key=m.number, length=runningLength, startTick=startTick , velocity=m.velocity}}
+                        break
+                     end
+                     --print('loop')
+                     
+                  end
+                  
+                  
+               end
+               
+            end
+            
+         end
+         print(inspect(notes), inspect(resultNotes))
+         notes[1] = resultNotes
+         channel.main2audio:push ( {notes=notes} )
+      end
+      
+      
+      --print(inspect(midiParser(filename)))
+      --print('!! ',inspect(notes[1]))
+
+      
+-- {
+--   [51] = { {
+--       key = 69,
+--       length = 51,
+--       startTick = 51,
+--       velocity = 28
+--     } },
+--   [144] = { {
+--       key = 64,
+--       length = 31,
+--       startTick = 144,
+--       velocity = 70
+--     } },
+--   [194] = { {
+--       key = 62,
+--       length = 80,
+--       startTick = 194,
+--       velocity = 32
+--     } },
+
+
    end
    
 end
