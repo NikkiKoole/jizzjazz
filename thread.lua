@@ -6,9 +6,18 @@ require 'soundStuff'
 sone = require 'sone'
 require 'instrument'
 --https://github.com/danigb/timestretch/blob/master/lib/index.js
+--ffi = require 'ffi'
+--print(ffi)
+--ffi.load()
+--ffi.load(love.filesystem.getSource().."/".."luamidi.so") 
+--local inspect = require "inspect"
+
+--luamidi = require (love.filesystem.getSaveDirectory() .. '/' .. 'luamidi')
+--print(love.filesystem.getSource().."/"..'luamidi')
+--luamidi = require(love.filesystem.getSource().."/"..'luamidi')
 
 luamidi = require "luamidi"
-local inspect = require "inspect"
+
 local now = love.timer.getTime()
 local time = 0
 local lastTick = -1
@@ -321,8 +330,8 @@ function getPitch(activeSource, offset)
       rootTranspose = 72 - activeSource.pickedInstrumentSound.sample.root
    end
    local index = activeSource.key + offset  + transpose + rootTranspose
-   
-   return pitches[index] or 1
+   local result = pitches[index] or 1 
+   return result
 end
 
 function pitchNote(value)
@@ -928,7 +937,7 @@ while(run ) do
    local delta = n - now
    now = n
    time = time + delta
-
+   print(delta <  1/44100)
    local pulses_per_quarter_note = 96
    local unitsPerBar = timeData.signatureBeatPerBar 
    local ticksPerUnit = pulses_per_quarter_note / (timeData.signatureUnit/4)
@@ -943,7 +952,8 @@ while(run ) do
          stopNote(thing.key, thing.channelIndex)
          table.remove(triggeredPianoRollPlayNotes, pp)
       end
-      --lastTick
+      --lastTick\\\\\
+      
       
       --if math.floor(tick) ~= math.floor(lastTick) then
       --   print(inspect(thing), tick)
